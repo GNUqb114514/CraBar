@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+andrew = "0.3.1"
+smithay-client-toolkit = "0.19.2"
+wayland-client = "0.31.6"
