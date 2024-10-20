@@ -18,20 +18,28 @@ impl Into<[u8; 4]> for &Color {
     /// Translate this to byte reprensation,
     /// in ARGB8888 format.
     fn into(self) -> [u8; 4] {
-        [self.b, self.g, self.r, self.a]
+        [self.a, self.r, self.g, self.b]
     }
 }
 
 impl From<Color> for clap::builder::OsStr {
     fn from(value: Color) -> Self {
-        let str: &str = format!("#{:x}{:x}{:x}{:x}", value.r, value.g, value.b, value.a).leak();
+        let str: &str = format!(
+            "#{:02x}{:02x}{:02x}{:02x}",
+            value.r, value.g, value.b, value.a
+        )
+        .leak();
         str.into()
     }
 }
 
 impl std::fmt::Display for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "#{:x}{:x}{:x}{:x}", self.r, self.g, self.b, self.a)
+        write!(
+            f,
+            "#{:02x}{:02x}{:02x}{:02x}",
+            self.r, self.g, self.b, self.a
+        )
     }
 }
 
@@ -56,9 +64,9 @@ impl core::str::FromStr for Color {
                 5 => {
                     let number = u32::from_str_radix(s.get(1..).ok_or(())?, 16).map_err(|_| ())?;
                     Color::new(
-                        ((number & 0xf00) >> 4).try_into().map_err(|_| ())?,
-                        ((number & 0x0f0) >> 0).try_into().map_err(|_| ())?,
-                        ((number & 0x00f) << 4).try_into().map_err(|_| ())?,
+                        ((number & 0xf000) >> 4).try_into().map_err(|_| ())?,
+                        ((number & 0x0f00) >> 0).try_into().map_err(|_| ())?,
+                        ((number & 0x00f0) << 4).try_into().map_err(|_| ())?,
                         ((number & 0xf000) >> 8).try_into().map_err(|_| ())?,
                     )
                 }
@@ -74,10 +82,10 @@ impl core::str::FromStr for Color {
                 9 => {
                     let number = u32::from_str_radix(s.get(1..).ok_or(())?, 16).map_err(|_| ())?;
                     Color::new(
-                        ((number & 0x00ff0000) >> 16).try_into().map_err(|_| ())?,
-                        ((number & 0x0000ff00) >> 8).try_into().map_err(|_| ())?,
-                        (number & 0x000000ff).try_into().map_err(|_| ())?,
-                        ((number & 0xff000000) >> 12).try_into().map_err(|_| ())?,
+                        ((number & 0xff000000) >> 16).try_into().map_err(|_| ())?,
+                        ((number & 0x00ff0000) >> 8).try_into().map_err(|_| ())?,
+                        (number & 0x0000ff00).try_into().map_err(|_| ())?,
+                        ((number & 0x000000ff) >> 12).try_into().map_err(|_| ())?,
                     )
                 }
                 _ => return Err(()),
@@ -89,7 +97,7 @@ impl core::str::FromStr for Color {
 
 #[derive(Parser)]
 pub struct Config {
-    #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value=Color::new(255, 0, 0, 255))]
+    #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value="#ffffff")]
     background_color: Color,
 }
 

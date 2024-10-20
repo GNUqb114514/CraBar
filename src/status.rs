@@ -1,4 +1,5 @@
 use crate::cli;
+use andrew::Drawable;
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
@@ -158,7 +159,7 @@ impl Bar {
                 .unwrap()
                 .0
         });
-        let canvas = match self.pool.canvas(buffer) {
+        let mut canvas = match self.pool.canvas(buffer) {
             Some(canvas) => canvas,
             None => {
                 let (second_buffer, canvas) = self
@@ -174,19 +175,32 @@ impl Bar {
                 canvas
             }
         };
+        let mut canvas = andrew::Canvas::new(
+            &mut canvas,
+            width as usize,
+            height as usize,
+            stride as usize,
+            andrew::Endian::Big,
+        );
         {
             let shift = 0;
             canvas
+                .buffer
                 .chunks_exact_mut(4)
                 .enumerate()
                 .for_each(|(index, chunk)| {
                     let x = ((index + shift as usize) % width as usize) as u32;
                     let y = (index / width as usize) as u32;
 
-                    let color = self.config.background_color();
                     let array: &mut [u8; 4] = chunk.try_into().unwrap();
-                    *array = color.into();
+                    *array = self.config.background_color().into();
                 });
+            let mut config = fontconfig::FontConfig::default();
+            let font = config.find("sans-serif".to_string(), None);
+            let fontpath = font.unwrap().path;
+            let fontdata = std::fs::read(fontpath).unwrap();
+            let text = andrew::text::Text::new((5, 5), (&cli::Color::new(0, 0, 0, 0)).into(), &fontdata, 20., 1., "Test");
+            text.draw(&mut canvas);
         }
 
         self.layer
