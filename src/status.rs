@@ -1,3 +1,4 @@
+use crate::cli;
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
@@ -11,6 +12,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{protocol, Connection, QueueHandle};
 
 pub struct Bar {
+    config: cli::Config,
     registry: sctk::registry::RegistryState,
     output_state: output::OutputState,
     shm: sctk::shm::Shm,
@@ -90,7 +92,7 @@ impl CompositorHandler for Bar {
 }
 
 impl Bar {
-    pub fn new() -> (Self, wayland_client::EventQueue<Self>) {
+    pub fn new(config: cli::Config) -> (Self, wayland_client::EventQueue<Self>) {
         let conn = Connection::connect_to_env().unwrap();
 
         let (globals, event_queue) = wayland_client::globals::registry_queue_init(&conn).unwrap();
@@ -122,6 +124,7 @@ impl Bar {
 
         (
             Bar {
+                config,
                 output_state: output::OutputState::new(&globals, &qh),
                 registry: sctk::registry::RegistryState::new(&globals),
                 req_exit: false,
@@ -180,20 +183,9 @@ impl Bar {
                     let x = ((index + shift as usize) % width as usize) as u32;
                     let y = (index / width as usize) as u32;
 
-                    //let a = 0xff;
-                    //let r = 0xff;
-                    //let g = 0x00;
-                    //let b = 0x00;
-                    let a = 0xFF;
-                    let r = 0xff;
-                    let g = 0;
-                    let b = 0;
-                    //let r = u32::min(((width - x) * 0xFF) / width, ((height - y) * 0xFF) / height);
-                    //let g = u32::min((x * 0xFF) / width, ((height - y) * 0xFF) / height);
-                    //let b = u32::min(((width - x) * 0xFF) / width, (y * 0xFF) / height);
-                    let color: u32 = (a << 24) | (r << 16) | (g << 8) | b;
+                    let color = self.config.background_color();
                     let array: &mut [u8; 4] = chunk.try_into().unwrap();
-                    *array = color.to_le_bytes();
+                    *array = color.into();
                 });
         }
 

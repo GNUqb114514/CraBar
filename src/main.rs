@@ -1,11 +1,14 @@
+use clap::Parser;
 use status::Bar;
 
+mod cli;
 mod status;
 
 fn main() {
     env_logger::init();
 
-    let (mut state, mut event_queue) = Bar::new();
+    let config = cli::Config::parse();
+    let (mut state, mut event_queue) = Bar::new(config);
 
     loop {
         event_queue.blocking_dispatch(&mut state).unwrap();
