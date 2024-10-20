@@ -9,9 +9,8 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{protocol, Connection, QueueHandle};
 
 #[derive(Debug)]
-struct Status {
+struct Bar {
     compositor_state: compositor::CompositorState,
-    shell_state: xdg::XdgShell,
     registry: sctk::registry::RegistryState,
     output_state: output::OutputState,
     shm: sctk::shm::Shm,
@@ -20,11 +19,11 @@ struct Status {
     width: u32,
     height: u32,
     req_exit: bool,
-    window: Window,
-    queue_handler: QueueHandle<Status>,
+    layer: sctk::shell::wlr_layer::LayerSurface,
+    queue_handler: QueueHandle<Bar>,
 }
 
-impl ProvidesRegistryState for Status {
+impl ProvidesRegistryState for Bar {
     fn registry(&mut self) -> &mut sctk::registry::RegistryState {
         &mut self.registry
     }
@@ -32,7 +31,7 @@ impl ProvidesRegistryState for Status {
     sctk::registry_handlers!();
 }
 
-impl OutputHandler for Status {
+impl OutputHandler for Bar {
     fn output_state(&mut self) -> &mut output::OutputState {
         &mut self.output_state
     }
@@ -44,7 +43,7 @@ impl OutputHandler for Status {
     fn output_destroyed(&mut self, conn: &Connection, qh: &QueueHandle<Self>, output: WlOutput) {}
 }
 
-impl CompositorHandler for Status {
+impl CompositorHandler for Bar {
     fn scale_factor_changed(
         &mut self,
         conn: &Connection,
@@ -66,7 +65,7 @@ impl CompositorHandler for Status {
     }
 
     fn frame(&mut self, conn: &Connection, qh: &QueueHandle<Self>, surface: &WlSurface, time: u32) {
-        // TODO
+        self.draw();
     }
 
     fn surface_enter(
@@ -90,22 +89,14 @@ impl CompositorHandler for Status {
     }
 }
 
-impl window::WindowHandler for Status {
-    fn request_close(&mut self, conn: &Connection, qh: &QueueHandle<Self>, window: &Window) {
-        self.req_exit = true;
-    }
-
-    fn configure(
-        &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        window: &Window,
-        configure: WindowConfigure,
-        serial: u32,
-    ) {
+impl Bar {
+    fn draw(&mut self) {
         let width = self.width;
         let height = self.height;
         let stride = self.width * 4;
+
+        self.layer.set_exclusive_zone(height as i32+3);
+
         let buffer = self.buffer.get_or_insert_with(|| {
             self.pool
                 .create_buffer(
@@ -142,41 +133,95 @@ impl window::WindowHandler for Status {
                     let x = ((index + shift as usize) % width as usize) as u32;
                     let y = (index / width as usize) as u32;
 
-                    let a = 0xff;
-                    let r = u32::min(((width - x) * 0xFF) / width, ((height - y) * 0xFF) / height);
-                    let g = u32::min((x * 0xFF) / width, ((height - y) * 0xFF) / height);
-                    let b = u32::min(((width - x) * 0xFF) / width, (y * 0xFF) / height);
-                    let color: u32 = (a << 24) & (r << 26) + (g << 8) + b;
+                    //let a = 0xff;
+                    //let r = 0xff;
+                    //let g = 0x00;
+                    //let b = 0x00;
+                    let a = 0xFF;
+                    let r = 0xff;
+                    let g = 0;
+                    let b = 0;
+                    //let r = u32::min(((width - x) * 0xFF) / width, ((height - y) * 0xFF) / height);
+                    //let g = u32::min((x * 0xFF) / width, ((height - y) * 0xFF) / height);
+                    //let b = u32::min(((width - x) * 0xFF) / width, (y * 0xFF) / height);
+                    let color: u32 = (a << 24) | (r << 16) | (g << 8) | b;
                     let array: &mut [u8; 4] = chunk.try_into().unwrap();
                     *array = color.to_le_bytes();
                 });
         }
 
-        self.window
+        self.layer
             .wl_surface()
             .damage_buffer(0, 0, width as i32, height as i32);
 
-        self.window
+        self.layer
             .wl_surface()
-            .frame(&self.queue_handler, self.window.wl_surface().clone());
+            .frame(&self.queue_handler, self.layer.wl_surface().clone());
 
-        buffer.attach_to(self.window.wl_surface()).unwrap();
-        self.window.commit();
+        buffer.attach_to(self.layer.wl_surface()).unwrap();
+        self.layer.commit();
     }
 }
 
-impl sctk::shm::ShmHandler for Status {
+impl window::WindowHandler for Bar {
+    fn request_close(&mut self, conn: &Connection, qh: &QueueHandle<Self>, window: &Window) {
+        self.req_exit = true;
+    }
+
+    fn configure(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        window: &Window,
+        configure: WindowConfigure,
+        serial: u32,
+    ) {
+        self.draw();
+    }
+}
+
+impl sctk::shm::ShmHandler for Bar {
     fn shm_state(&mut self) -> &mut sctk::shm::Shm {
         &mut self.shm
     }
 }
 
-sctk::delegate_registry!(Status);
-sctk::delegate_compositor!(Status);
-sctk::delegate_xdg_shell!(Status);
-sctk::delegate_xdg_window!(Status);
-sctk::delegate_output!(Status);
-sctk::delegate_shm!(Status);
+impl sctk::shell::wlr_layer::LayerShellHandler for Bar {
+    fn closed(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
+    ) {
+        self.req_exit = true;
+    }
+
+    fn configure(
+        &mut self,
+        conn: &Connection,
+        qh: &QueueHandle<Self>,
+        layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
+        configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
+        serial: u32,
+    ) {
+        if configure.new_size == (0, 0) {
+            self.width = 1024;
+            self.height = 30;
+        } else {
+            self.width = configure.new_size.0;
+            self.height = configure.new_size.1;
+        }
+        self.draw();
+    }
+}
+
+sctk::delegate_registry!(Bar);
+sctk::delegate_compositor!(Bar);
+sctk::delegate_xdg_shell!(Bar);
+sctk::delegate_xdg_window!(Bar);
+sctk::delegate_output!(Bar);
+sctk::delegate_shm!(Bar);
+sctk::delegate_layer!(Bar);
 
 fn main() {
     env_logger::init();
@@ -187,29 +232,40 @@ fn main() {
     let qh = event_queue.handle();
 
     let compositor_state = compositor::CompositorState::bind(&globals, &qh).unwrap();
-    let shell_state = xdg::XdgShell::bind(&globals, &qh).unwrap();
+    let layer_shell = sctk::shell::wlr_layer::LayerShell::bind(&globals, &qh).unwrap();
     let shm = sctk::shm::Shm::bind(&globals, &qh).unwrap();
 
     let surface = compositor_state.create_surface(&qh);
-    let window = shell_state.create_window(surface, window::WindowDecorations::ServerDefault, &qh);
-    window.set_app_id("CraBar");
-    window.set_min_size(Some((256, 256)));
-    window.commit();
 
-    let pool = sctk::shm::slot::SlotPool::new(262144, &shm).unwrap();
+    let layer = layer_shell.create_layer_surface(
+        &qh,
+        surface,
+        smithay_client_toolkit::shell::wlr_layer::Layer::Top,
+        Some("CraBar"),
+        None,
+    );
+    layer.set_anchor(
+        sctk::shell::wlr_layer::Anchor::TOP
+            | sctk::shell::wlr_layer::Anchor::LEFT
+            | sctk::shell::wlr_layer::Anchor::RIGHT,
+    );
+    layer.set_size(0, 30);
+    // Default to no keyboard interactive
+    layer.commit();
 
-    let mut state = Status {
+    let pool = sctk::shm::slot::SlotPool::new(122880, &shm).unwrap();
+
+    let mut state = Bar {
         compositor_state,
-        shell_state,
         output_state: output::OutputState::new(&globals, &qh),
         registry: sctk::registry::RegistryState::new(&globals),
         req_exit: false,
         pool,
         shm,
-        width: 256,
-        height: 256,
+        width: 1024,
+        height: 30,
         buffer: None,
-        window,
+        layer,
         queue_handler: qh,
     };
 
