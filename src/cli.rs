@@ -1,6 +1,6 @@
 use clap::Parser;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Color {
     r: u8,
     g: u8,
@@ -18,7 +18,20 @@ impl Into<[u8; 4]> for &Color {
     /// Translate this to byte reprensation,
     /// in ARGB8888 format.
     fn into(self) -> [u8; 4] {
-        [self.a, self.r, self.g, self.b]
+        [self.b, self.g, self.r, self.a]
+    }
+}
+
+impl From<Color> for clap::builder::OsStr {
+    fn from(value: Color) -> Self {
+        let str: &str = format!("#{:x}{:x}{:x}{:x}", value.r, value.g, value.b, value.a).leak();
+        str.into()
+    }
+}
+
+impl std::fmt::Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "#{:x}{:x}{:x}{:x}", self.r, self.g, self.b, self.a)
     }
 }
 
@@ -26,98 +39,57 @@ impl core::str::FromStr for Color {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.get(0..1).is_some_and(|v| v == "#") {
-            return Err(Into::<String>::into("Invalid string"));
+        fn inner(s: &str) -> Result<Color, ()> {
+            if s.get(0..0).is_some_and(|v| v == "#") {
+                return Err(());
+            }
+            Ok(match s.len() {
+                4 => {
+                    let number = u32::from_str_radix(s.get(1..).ok_or(())?, 16).map_err(|_| ())?;
+                    Color::new(
+                        ((number & 0xf00) >> 4).try_into().map_err(|_| ())?,
+                        ((number & 0x0f0) >> 0).try_into().map_err(|_| ())?,
+                        ((number & 0x00f) << 4).try_into().map_err(|_| ())?,
+                        0xff,
+                    )
+                }
+                5 => {
+                    let number = u32::from_str_radix(s.get(1..).ok_or(())?, 16).map_err(|_| ())?;
+                    Color::new(
+                        ((number & 0xf00) >> 4).try_into().map_err(|_| ())?,
+                        ((number & 0x0f0) >> 0).try_into().map_err(|_| ())?,
+                        ((number & 0x00f) << 4).try_into().map_err(|_| ())?,
+                        ((number & 0xf000) >> 8).try_into().map_err(|_| ())?,
+                    )
+                }
+                7 => {
+                    let number = u32::from_str_radix(s.get(1..).ok_or(())?, 16).map_err(|_| ())?;
+                    Color::new(
+                        ((number & 0xff0000) >> 16).try_into().map_err(|_| ())?,
+                        ((number & 0x00ff00) >> 8).try_into().map_err(|_| ())?,
+                        (number & 0x0000ff).try_into().map_err(|_| ())?,
+                        0xff,
+                    )
+                }
+                9 => {
+                    let number = u32::from_str_radix(s.get(1..).ok_or(())?, 16).map_err(|_| ())?;
+                    Color::new(
+                        ((number & 0x00ff0000) >> 16).try_into().map_err(|_| ())?,
+                        ((number & 0x0000ff00) >> 8).try_into().map_err(|_| ())?,
+                        (number & 0x000000ff).try_into().map_err(|_| ())?,
+                        ((number & 0xff000000) >> 12).try_into().map_err(|_| ())?,
+                    )
+                }
+                _ => return Err(()),
+            })
         }
-        Ok(match s.len() {
-            4 => {
-                let number = u32::from_str_radix(
-                    s.get(1..).ok_or(Into::<String>::into("Invalid string"))?,
-                    16,
-                )
-                .map_err(|_| Into::<String>::into("Invalid string"))?;
-                Color::new(
-                    ((number & 0xf00) >> 8)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    ((number & 0x0f0) >> 4)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    (number & 0x00f)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    0xff,
-                )
-            }
-            5 => {
-                let number = u32::from_str_radix(
-                    s.get(1..).ok_or(Into::<String>::into("Invalid string"))?,
-                    16,
-                )
-                .map_err(|_| Into::<String>::into("Invalid string"))?;
-                Color::new(
-                    ((number & 0x0f00) >> 8)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    ((number & 0x00f0) >> 4)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    (number & 0x000f)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    ((number & 0xf000) >> 12)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                )
-            }
-            7 => {
-                let number = u32::from_str_radix(
-                    s.get(1..).ok_or(Into::<String>::into("Invalid string"))?,
-                    16,
-                )
-                .map_err(|_| Into::<String>::into("Invalid string"))?;
-                Color::new(
-                    ((number & 0xff0000) >> 8)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    ((number & 0x00ff00) >> 4)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    (number & 0x0000ff)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    0xff,
-                )
-            }
-            9 => {
-                let number = u32::from_str_radix(
-                    s.get(1..).ok_or(Into::<String>::into("Invalid string"))?,
-                    16,
-                )
-                .map_err(|_| Into::<String>::into("Invalid string"))?;
-                Color::new(
-                    ((number & 0x00ff0000) >> 8)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    ((number & 0x0000ff00) >> 4)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    (number & 0x000000ff)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                    ((number & 0xff000000) >> 12)
-                        .try_into()
-                        .map_err(|_| Into::<String>::into("Invalid string"))?,
-                )
-            }
-            _ => return Err(Into::<String>::into("Invalid string")),
-        })
+        inner(s).map_err(|_| format!("Invalid string: {}", s))
     }
 }
 
 #[derive(Parser)]
 pub struct Config {
-    #[arg(value_parser=|v:&str| v.parse::<Color>())]
+    #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value=Color::new(255, 0, 0, 255))]
     background_color: Color,
 }
 
