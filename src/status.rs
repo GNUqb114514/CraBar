@@ -39,54 +39,61 @@ impl OutputHandler for Bar {
         &mut self.output_state
     }
 
-    fn new_output(&mut self, conn: &Connection, qh: &QueueHandle<Self>, output: WlOutput) {}
+    fn new_output(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {}
 
-    fn update_output(&mut self, conn: &Connection, qh: &QueueHandle<Self>, output: WlOutput) {}
+    fn update_output(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {}
 
-    fn output_destroyed(&mut self, conn: &Connection, qh: &QueueHandle<Self>, output: WlOutput) {}
+    fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {
+    }
 }
 
 impl CompositorHandler for Bar {
     fn scale_factor_changed(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        surface: &WlSurface,
-        new_factor: i32,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &WlSurface,
+        _new_factor: i32,
     ) {
         // Ignored
     }
 
     fn transform_changed(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        surface: &WlSurface,
-        new_transform: Transform,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &WlSurface,
+        _new_transform: Transform,
     ) {
         // Ignored
     }
 
-    fn frame(&mut self, conn: &Connection, qh: &QueueHandle<Self>, surface: &WlSurface, time: u32) {
+    fn frame(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &WlSurface,
+        _time: u32,
+    ) {
         self.draw();
     }
 
     fn surface_enter(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        surface: &WlSurface,
-        output: &WlOutput,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &WlSurface,
+        _output: &WlOutput,
     ) {
         // Ignored
     }
 
     fn surface_leave(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        surface: &WlSurface,
-        output: &WlOutput,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _surface: &WlSurface,
+        _output: &WlOutput,
     ) {
         // Ignored
     }
@@ -183,15 +190,11 @@ impl Bar {
             andrew::Endian::Big,
         );
         {
-            let shift = 0;
             canvas
                 .buffer
                 .chunks_exact_mut(4)
                 .enumerate()
-                .for_each(|(index, chunk)| {
-                    let x = ((index + shift as usize) % width as usize) as u32;
-                    let y = (index / width as usize) as u32;
-
+                .for_each(|(_index, chunk)| {
                     let array: &mut [u8; 4] = chunk.try_into().unwrap();
                     *array = self.config.background_color().into();
                 });
@@ -199,7 +202,14 @@ impl Bar {
             let font = config.find("sans-serif".to_string(), None);
             let fontpath = font.unwrap().path;
             let fontdata = std::fs::read(fontpath).unwrap();
-            let text = andrew::text::Text::new((5, 5), (&cli::Color::new(0, 0, 0, 0)).into(), &fontdata, 20., 1., "Test");
+            let text = andrew::text::Text::new(
+                (5, 5),
+                (&cli::Color::new(0, 0, 0, 0)).into(),
+                &fontdata,
+                20.,
+                1.,
+                "Test",
+            );
             text.draw(&mut canvas);
         }
 
@@ -221,17 +231,17 @@ impl Bar {
 }
 
 impl window::WindowHandler for Bar {
-    fn request_close(&mut self, conn: &Connection, qh: &QueueHandle<Self>, window: &Window) {
+    fn request_close(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _window: &Window) {
         self.req_exit = true;
     }
 
     fn configure(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        window: &Window,
-        configure: WindowConfigure,
-        serial: u32,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _window: &Window,
+        _configure: WindowConfigure,
+        _serial: u32,
     ) {
         self.draw();
     }
@@ -246,20 +256,20 @@ impl sctk::shm::ShmHandler for Bar {
 impl sctk::shell::wlr_layer::LayerShellHandler for Bar {
     fn closed(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
     ) {
         self.req_exit = true;
     }
 
     fn configure(
         &mut self,
-        conn: &Connection,
-        qh: &QueueHandle<Self>,
-        layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
         configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
-        serial: u32,
+        _serial: u32,
     ) {
         if configure.new_size == (0, 0) {
             self.width = 1024;

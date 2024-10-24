@@ -14,11 +14,64 @@ impl Color {
     }
 }
 
+impl Color {
+    // Combine two colors by AlphaBlend.
+    pub fn blend(&self, bg: &Self) -> Self {
+        let aa: u32 = self.a.into();
+        let ra: u32 = self.r.into();
+        let ga: u32 = self.g.into();
+        let ba: u32 = self.b.into();
+        let ab: u32 = bg.a.into();
+        let rb: u32 = bg.r.into();
+        let gb: u32 = bg.g.into();
+        let bb: u32 = bg.b.into();
+        let ac: u8 = (255 as u32 - ((255 - aa) * (255 - ab) >> 8))
+            .try_into()
+            .unwrap();
+        let rc: u8 = ((ra * (aa) >> 8) + (rb * (ab) * (1 - aa) >> 16))
+            .try_into()
+            .unwrap();
+        let gc: u8 = ((ga * (aa) >> 8) + (gb * (ab) * (1 - aa) >> 16))
+            .try_into()
+            .unwrap();
+        let bc: u8 = ((ba * (aa) >> 8) + (bb * (ab) * (1 - aa) >> 16))
+            .try_into()
+            .unwrap();
+        Self {
+            a: ac,
+            r: rc,
+            g: gc,
+            b: bc,
+        }
+    }
+
+    // Combine this with alpha
+    pub fn with_alpha(&self, alpha: u8) -> Self {
+        let orig: u32 = self.a.into();
+        let new: u32 = alpha.into();
+        let res: u8 = ((orig * new) >> 8).try_into().unwrap();
+        Self { a: res, ..*self }
+    }
+}
+
 impl Into<[u8; 4]> for &Color {
     /// Translate this to byte reprensation,
     /// in ARGB8888 format.
     fn into(self) -> [u8; 4] {
         [self.a, self.r, self.g, self.b]
+    }
+}
+
+impl From<&[u8; 4]> for Color {
+    /// Translate byte reprensation to this struct,
+    /// in ARGB8888 format.
+    fn from(value: &[u8; 4]) -> Self {
+        Self {
+            a: value[0],
+            r: value[1],
+            g: value[2],
+            b: value[3],
+        }
     }
 }
 

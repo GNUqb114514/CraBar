@@ -3,6 +3,7 @@ use status::Bar;
 
 mod cli;
 mod status;
+mod text;
 
 fn main() {
     env_logger::init();
