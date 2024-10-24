@@ -1,2 +1,2 @@
 # CraBar
-A crabweight crab-scented bar based in smithay
+A crabweight crab-scented bar based in smithay (WIP)
