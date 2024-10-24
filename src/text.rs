@@ -1,11 +1,11 @@
 use crate::cli::Color;
 
-trait Paintable {
+pub trait Paintable {
     fn width(&self) -> usize;
     fn height(&self) -> usize;
     fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()>;
     fn get_pixel(&self, x: usize, y: usize) -> Result<Color, ()>;
-    fn draw_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()> {
+    fn draw_pixel(&mut self, x: usize, y: usize, color: &Color) -> Result<(), ()> {
         self.set_pixel(x, y, color.blend(&self.get_pixel(x, y)?))
     }
     fn slice<'slice>(
@@ -15,7 +15,8 @@ trait Paintable {
         width: usize,
         height: usize,
     ) -> Result<PaintableSlice<'slice, Self>, ()>
-    where Self: Sized
+    where
+        Self: Sized,
     {
         if self.height() < y + height || self.width() < x + width {
             Err(())
@@ -25,7 +26,7 @@ trait Paintable {
     }
 }
 
-trait Paint {
+pub trait Paint {
     fn paint(&self, canvas: &mut impl Paintable) -> Result<(), ()>;
 }
 
@@ -46,12 +47,13 @@ impl<'buffer> Canvas<'buffer> {
 
     fn get_buffer_mut(&mut self, x: usize, y: usize) -> Option<&mut [u8; 4]> {
         self.buffer
-            .get_mut(y * self.width * 4 + x..y * self.width * 4 + x + 4)
+            .get_mut(y * self.width * 4 + x*4 .. y * self.width * 4 + x*4 + 4)
             .map(|v| v.try_into().ok())?
     }
+
     fn get_buffer(&self, x: usize, y: usize) -> Option<&[u8; 4]> {
         self.buffer
-            .get(y * self.width * 4 + x..y * self.width * 4 + x + 4)
+            .get(y * self.width * 4 + x*4 .. y * self.width * 4 + x*4 + 4)
             .map(|v| v.try_into().ok())?
     }
 }
@@ -93,14 +95,14 @@ where
     P: Paintable,
 {
     fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()> {
-        if self.height < y || self.width < x {
+        if y >= self.height || x >= self.width {
             return Err(());
         }
         self.parent_canvas.set_pixel(x + self.x, y + self.y, color)
     }
 
     fn get_pixel(&self, x: usize, y: usize) -> Result<Color, ()> {
-        if self.height < y || self.width < x {
+        if y >= self.height || x >= self.width {
             return Err(());
         }
         self.parent_canvas.get_pixel(x + self.x, y + self.y)
@@ -170,13 +172,15 @@ impl Paint for Text<'_> {
         for glyph in glyphs {
             if let Some(bounding_box) = glyph.pixel_bounding_box() {
                 glyph.draw(|x, y, v| {
+                    let blend = self
+                            .fg_color
+                            .with_alpha((v * 255.) as u8)
+                            .blend(&self.bg_color);
                     canvas.draw_pixel(
                         (x + bounding_box.min.x as u32) as usize,
                         (y + bounding_box.min.y as u32) as usize,
-                        self.fg_color
-                            .with_alpha((v * 255.) as u8)
-                            .blend(&self.bg_color),
-                    );
+                        &blend,
+                    ).unwrap();
                 })
             }
         }

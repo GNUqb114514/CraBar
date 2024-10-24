@@ -1,5 +1,6 @@
 use crate::cli;
-use andrew::Drawable;
+use crate::text::Paintable;
+use crate::text::Paint;
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
@@ -166,7 +167,7 @@ impl Bar {
                 .unwrap()
                 .0
         });
-        let mut canvas = match self.pool.canvas(buffer) {
+        let canvas = match self.pool.canvas(buffer) {
             Some(canvas) => canvas,
             None => {
                 let (second_buffer, canvas) = self
@@ -182,35 +183,48 @@ impl Bar {
                 canvas
             }
         };
-        let mut canvas = andrew::Canvas::new(
-            &mut canvas,
-            width as usize,
-            height as usize,
-            stride as usize,
-            andrew::Endian::Big,
-        );
+        //let mut canvas = andrew::Canvas::new(
+        //    &mut canvas,
+        //    width as usize,
+        //    height as usize,
+        //    stride as usize,
+        //    andrew::Endian::Big,
+        //);
+        let mut canvas = crate::text::Canvas::new(height as usize, width as usize, canvas);
         {
-            canvas
-                .buffer
-                .chunks_exact_mut(4)
-                .enumerate()
-                .for_each(|(_index, chunk)| {
-                    let array: &mut [u8; 4] = chunk.try_into().unwrap();
-                    *array = self.config.background_color().into();
-                });
+            //canvas
+            //    .buffer
+            //    .chunks_exact_mut(4)
+            //    .enumerate()
+            //    .for_each(|(_index, chunk)| {
+            //        let array: &mut [u8; 4] = chunk.try_into().unwrap();
+            //        *array = self.config.background_color().into();
+            //    });
+            for y in 0..height {
+                for x in 0..width {
+                    canvas.draw_pixel(x as usize, y as usize, self.config.background_color()).unwrap();
+                }
+            }
             let mut config = fontconfig::FontConfig::default();
             let font = config.find("sans-serif".to_string(), None);
             let fontpath = font.unwrap().path;
             let fontdata = std::fs::read(fontpath).unwrap();
-            let text = andrew::text::Text::new(
-                (5, 5),
-                (&cli::Color::new(0, 0, 0, 0)).into(),
-                &fontdata,
-                20.,
-                1.,
-                "Test",
+            let text = crate::text::Text::new(
+                "Test".to_string(),
+                rusttype::Font::try_from_bytes(&fontdata).unwrap(),
+                cli::Color::new(0, 0, 0, 255),
+                cli::Color::new(255, 255, 255, 255),
             );
-            text.draw(&mut canvas);
+            text.paint(&mut canvas).unwrap();
+            //let text = andrew::text::Text::new(
+            //    (5, 5),
+            //    (&cli::Color::new(0, 0, 0, 0)).into(),
+            //    &fontdata,
+            //    20.,
+            //    1.,
+            //    "Test",
+            //);
+            //text.draw(&mut canvas);
         }
 
         self.layer

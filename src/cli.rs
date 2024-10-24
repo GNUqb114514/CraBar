@@ -28,13 +28,13 @@ impl Color {
         let ac: u8 = (255 as u32 - ((255 - aa) * (255 - ab) >> 8))
             .try_into()
             .unwrap();
-        let rc: u8 = ((ra * (aa) >> 8) + (rb * (ab) * (1 - aa) >> 16))
+        let rc: u8 = ((ra * (aa) >> 8) + (rb * (ab) * (255 - aa) >> 16))
             .try_into()
             .unwrap();
-        let gc: u8 = ((ga * (aa) >> 8) + (gb * (ab) * (1 - aa) >> 16))
+        let gc: u8 = ((ga * (aa) >> 8) + (gb * (ab) * (255 - aa) >> 16))
             .try_into()
             .unwrap();
-        let bc: u8 = ((ba * (aa) >> 8) + (bb * (ab) * (1 - aa) >> 16))
+        let bc: u8 = ((ba * (aa) >> 8) + (bb * (ab) * (255 - aa) >> 16))
             .try_into()
             .unwrap();
         Self {
@@ -58,7 +58,7 @@ impl Into<[u8; 4]> for &Color {
     /// Translate this to byte reprensation,
     /// in ARGB8888 format.
     fn into(self) -> [u8; 4] {
-        [self.a, self.r, self.g, self.b]
+        [self.b, self.g, self.r, self.a]
     }
 }
 
@@ -67,10 +67,10 @@ impl From<&[u8; 4]> for Color {
     /// in ARGB8888 format.
     fn from(value: &[u8; 4]) -> Self {
         Self {
-            a: value[0],
-            r: value[1],
-            g: value[2],
-            b: value[3],
+            a: value[3],
+            r: value[2],
+            g: value[1],
+            b: value[0],
         }
     }
 }
