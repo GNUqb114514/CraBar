@@ -5,7 +5,7 @@ pub trait Paintable {
     fn height(&self) -> usize;
     fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()>;
     fn get_pixel(&self, x: usize, y: usize) -> Result<Color, ()>;
-    fn draw_pixel(&mut self, x: usize, y: usize, color: &Color) -> Result<(), ()> {
+    fn draw_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()> {
         self.set_pixel(x, y, color.blend(&self.get_pixel(x, y)?))
     }
     fn slice<'slice>(
@@ -179,7 +179,7 @@ impl Paint for Text<'_> {
                     canvas.draw_pixel(
                         (x + bounding_box.min.x as u32) as usize,
                         (y + bounding_box.min.y as u32) as usize,
-                        &blend,
+                        blend,
                     ).unwrap();
                 })
             }

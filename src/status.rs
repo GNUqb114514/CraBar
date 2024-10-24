@@ -212,8 +212,8 @@ impl Bar {
             let text = crate::text::Text::new(
                 "Test".to_string(),
                 rusttype::Font::try_from_bytes(&fontdata).unwrap(),
-                cli::Color::new(0, 0, 0, 255),
-                cli::Color::new(255, 255, 255, 255),
+                self.config.foreground_color(),
+                self.config.background_color(),
             );
             text.paint(&mut canvas).unwrap();
             //let text = andrew::text::Text::new(

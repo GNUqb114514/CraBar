@@ -1,6 +1,6 @@
 use clap::Parser;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct Color {
     r: u8,
     g: u8,
@@ -152,10 +152,16 @@ impl core::str::FromStr for Color {
 pub struct Config {
     #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value="#ffffff")]
     background_color: Color,
+    #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value="#000000")]
+    foreground_color: Color,
 }
 
 impl Config {
-    pub fn background_color(&self) -> &Color {
-        &self.background_color
+    pub fn background_color(&self) -> Color {
+        self.background_color
+    }
+
+    pub fn foreground_color(&self) -> Color {
+        self.foreground_color
     }
 }
