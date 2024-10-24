@@ -1,10 +1,27 @@
 use crate::cli::Color;
 
 trait Paintable {
+    fn width(&self) -> usize;
+    fn height(&self) -> usize;
     fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()>;
     fn get_pixel(&self, x: usize, y: usize) -> Result<Color, ()>;
     fn draw_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()> {
         self.set_pixel(x, y, color.blend(&self.get_pixel(x, y)?))
+    }
+    fn slice<'slice>(
+        &'slice mut self,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<PaintableSlice<'slice, Self>, ()>
+    where Self: Sized
+    {
+        if self.height() < y + height || self.width() < x + width {
+            Err(())
+        } else {
+            Ok(PaintableSlice::new(self, x, y, height, width))
+        }
     }
 }
 
@@ -36,22 +53,6 @@ impl<'buffer> Canvas<'buffer> {
         self.buffer
             .get(y * self.width * 4 + x..y * self.width * 4 + x + 4)
             .map(|v| v.try_into().ok())?
-    }
-}
-
-impl<'slice> Canvas<'slice> {
-    pub fn slice(
-        &'slice mut self,
-        x: usize,
-        y: usize,
-        height: usize,
-        width: usize,
-    ) -> Option<PaintableSlice<'slice, Self>> {
-        if self.height < y + height || self.width < x + width {
-            None
-        } else {
-            Some(PaintableSlice::new(self, x, y, height, width))
-        }
     }
 }
 
@@ -104,6 +105,14 @@ where
         }
         self.parent_canvas.get_pixel(x + self.x, y + self.y)
     }
+
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn height(&self) -> usize {
+        self.height
+    }
 }
 
 impl Paintable for Canvas<'_> {
@@ -117,6 +126,14 @@ impl Paintable for Canvas<'_> {
 
     fn get_pixel(&self, x: usize, y: usize) -> Result<Color, ()> {
         Ok(self.get_buffer(x, y).ok_or(())?.into())
+    }
+
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn height(&self) -> usize {
+        self.height
     }
 }
 
