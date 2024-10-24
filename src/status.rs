@@ -156,6 +156,25 @@ impl Bar {
 
         self.layer.set_exclusive_zone(height as i32 + 3);
 
+        let mut stdin_data = String::new();
+        let stdin = std::io::stdin();
+        match stdin.read_line(&mut stdin_data) {
+            Ok(n) => {
+                if n == 0 {
+                    log::info!("n == 0; exiting");
+                    self.req_exit = true;
+                }
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::BrokenPipe => {
+                log::info!("Broken pipe; exit normally");
+                self.req_exit = true;
+                return;
+            }
+            Err(ref e) => {
+                log::error!("Cannot get new input: {}", e.kind())
+            }
+        }
+
         let buffer = self.buffer.get_or_insert_with(|| {
             self.pool
                 .create_buffer(
@@ -210,7 +229,7 @@ impl Bar {
             let fontpath = font.unwrap().path;
             let fontdata = std::fs::read(fontpath).unwrap();
             let text = crate::text::Text::new(
-                "Test".to_string(),
+                stdin_data,
                 rusttype::Font::try_from_bytes(&fontdata).unwrap(),
                 self.config.foreground_color(),
                 self.config.background_color(),
