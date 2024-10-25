@@ -163,6 +163,7 @@ impl Bar {
                 if n == 0 {
                     log::info!("n == 0; exiting");
                     self.req_exit = true;
+                    return;
                 }
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::BrokenPipe => {
@@ -174,6 +175,7 @@ impl Bar {
                 log::error!("Cannot get new input: {}", e.kind())
             }
         }
+        stdin_data.pop();
 
         let buffer = self.buffer.get_or_insert_with(|| {
             self.pool
