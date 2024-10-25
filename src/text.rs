@@ -47,13 +47,13 @@ impl<'buffer> Canvas<'buffer> {
 
     fn get_buffer_mut(&mut self, x: usize, y: usize) -> Option<&mut [u8; 4]> {
         self.buffer
-            .get_mut(y * self.width * 4 + x*4 .. y * self.width * 4 + x*4 + 4)
+            .get_mut(y * self.width * 4 + x * 4..y * self.width * 4 + x * 4 + 4)
             .map(|v| v.try_into().ok())?
     }
 
     fn get_buffer(&self, x: usize, y: usize) -> Option<&[u8; 4]> {
         self.buffer
-            .get(y * self.width * 4 + x*4 .. y * self.width * 4 + x*4 + 4)
+            .get(y * self.width * 4 + x * 4..y * self.width * 4 + x * 4 + 4)
             .map(|v| v.try_into().ok())?
     }
 }
@@ -141,6 +141,7 @@ impl Paintable for Canvas<'_> {
 
 #[derive(Debug)]
 pub struct Text<'font> {
+    //content: String,
     content: String,
     font: rusttype::Font<'font>,
     fg_color: Color,
@@ -161,6 +162,28 @@ impl<'font> Text<'font> {
             bg_color,
         }
     }
+
+    pub fn get_region(&self) -> (f32, f32) {
+        let scale = rusttype::Scale::uniform(20.);
+        let v_metrics = self.font.v_metrics(scale);
+        let height = v_metrics.ascent - v_metrics.descent;
+        let glyphs: Vec<_> = self
+            .font
+            .layout(&self.content, scale, rusttype::point(0., 0.))
+            .collect();
+        let width = {
+            let min_x = glyphs
+                .first()
+                .map(|g| g.pixel_bounding_box().unwrap().min.x)
+                .unwrap();
+            let max_x = glyphs
+                .last()
+                .map(|g| g.pixel_bounding_box().unwrap().max.x)
+                .unwrap();
+            max_x - min_x
+        };
+        (width as f32, height)
+    }
 }
 
 impl Paint for Text<'_> {
@@ -173,14 +196,16 @@ impl Paint for Text<'_> {
             if let Some(bounding_box) = glyph.pixel_bounding_box() {
                 glyph.draw(|x, y, v| {
                     let blend = self
-                            .fg_color
-                            .with_alpha((v * 255.) as u8)
-                            .blend(&self.bg_color);
-                    canvas.draw_pixel(
-                        (x + bounding_box.min.x as u32) as usize,
-                        (y + bounding_box.min.y as u32) as usize,
-                        blend,
-                    ).unwrap();
+                        .fg_color
+                        .with_alpha((v * 255.) as u8)
+                        .blend(&self.bg_color);
+                    canvas
+                        .draw_pixel(
+                            (x + bounding_box.min.x as u32) as usize,
+                            (y + bounding_box.min.y as u32) as usize,
+                            blend,
+                        )
+                        .unwrap();
                 })
             }
         }

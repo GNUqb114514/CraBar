@@ -1,14 +1,14 @@
 use crate::cli;
-use crate::text::Paintable;
 use crate::text::Paint;
+use crate::text::Paintable;
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
 use sctk::shell::xdg::window::{self, Window, WindowConfigure};
 use sctk::shell::WaylandSurface;
 use sctk::shm::slot;
-use smithay_client_toolkit::seat::pointer::PointerEventKind;
 use smithay_client_toolkit as sctk;
+use smithay_client_toolkit::seat::pointer::PointerEventKind;
 use smithay_client_toolkit::shm::slot::Buffer;
 use wayland_client::protocol::wl_output::{Transform, WlOutput};
 use wayland_client::protocol::wl_surface::WlSurface;
@@ -28,6 +28,8 @@ pub struct Bar {
     queue_handler: QueueHandle<Bar>,
     seat_state: sctk::seat::SeatState,
     pointer: Option<wayland_client::protocol::wl_pointer::WlPointer>,
+    data: String,
+    fontpath: std::path::PathBuf,
 }
 
 impl ProvidesRegistryState for Bar {
@@ -135,6 +137,10 @@ impl Bar {
         let pool = sctk::shm::slot::SlotPool::new(122880, &shm).unwrap();
 
         let seat_state = smithay_client_toolkit::seat::SeatState::new(&globals, &qh);
+
+        let mut fontconfig = fontconfig::FontConfig::default();
+        let font = fontconfig.find("sans-serif".to_string(), None);
+        let fontpath = font.unwrap().path;
         (
             Bar {
                 config,
@@ -150,6 +156,8 @@ impl Bar {
                 queue_handler: qh,
                 seat_state,
                 pointer: None,
+                data: "".into(),
+                fontpath,
             },
             event_queue,
         )
@@ -162,9 +170,9 @@ impl Bar {
 
         self.layer.set_exclusive_zone(height as i32 + 3);
 
-        let mut stdin_data = String::new();
+        self.data.clear();
         let stdin = std::io::stdin();
-        match stdin.read_line(&mut stdin_data) {
+        match stdin.read_line(&mut self.data) {
             Ok(n) => {
                 if n == 0 {
                     log::info!("n == 0; exiting");
@@ -181,7 +189,7 @@ impl Bar {
                 log::error!("Cannot get new input: {}", e.kind())
             }
         }
-        stdin_data.pop();
+        self.data.pop();
 
         let buffer = self.buffer.get_or_insert_with(|| {
             self.pool
@@ -229,7 +237,9 @@ impl Bar {
             //    });
             for y in 0..height {
                 for x in 0..width {
-                    canvas.draw_pixel(x as usize, y as usize, self.config.background_color()).unwrap();
+                    canvas
+                        .draw_pixel(x as usize, y as usize, self.config.background_color())
+                        .unwrap();
                 }
             }
             let mut config = fontconfig::FontConfig::default();
@@ -237,7 +247,7 @@ impl Bar {
             let fontpath = font.unwrap().path;
             let fontdata = std::fs::read(fontpath).unwrap();
             let text = crate::text::Text::new(
-                stdin_data,
+                self.data.clone(),
                 rusttype::Font::try_from_bytes(&fontdata).unwrap(),
                 self.config.foreground_color(),
                 self.config.background_color(),
@@ -311,7 +321,8 @@ impl sctk::shell::wlr_layer::LayerShellHandler for Bar {
         _layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
         configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
         _serial: u32,
-    ) { if configure.new_size == (0, 0) {
+    ) {
+        if configure.new_size == (0, 0) {
             self.width = 1024;
             self.height = 30;
         } else {
@@ -327,7 +338,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _pointer: &protocol::wl_pointer::WlPointer,
+        pointer: &protocol::wl_pointer::WlPointer,
         events: &[smithay_client_toolkit::seat::pointer::PointerEvent],
     ) {
         for event in events {
@@ -336,10 +347,44 @@ impl sctk::seat::pointer::PointerHandler for Bar {
             }
             match event.kind {
                 PointerEventKind::Release { button, .. } => {
-                    log::info!("Pointer release key {}", button);
+                    let splitted_content = /* some process */ vec![self.data.clone()];
+                    let mut number = None;
+                    let mut margin:f64 = 5.;
+                    for (idx, content) in splitted_content.iter().enumerate() {
+                        let font = rusttype::Font::try_from_vec(
+                            std::fs::read::<&std::path::Path>(self.fontpath.as_ref()).unwrap(),
+                        )
+                        .unwrap();
+                        let text_obj = crate::text::Text::new(
+                            content.to_owned(),
+                            font,
+                            self.config.foreground_color(),
+                            self.config.background_color(),
+                        );
+                        let (width, _) = text_obj.get_region();
+                        let width = width as f64 + margin;
+                        let right_bound = margin+width;
+                        if (margin..right_bound).contains(&event.position.0) {
+                            number = Some(idx);
+                        }
+                        margin += width;
+                    }
+                    if let Some(number) = number {
+                        log::info!("Pointer release key {} at #{}", button, number);
+                    } else {
+                        log::info!("Pointer release key {} at nowhere", button);
+                    }
                 }
-                PointerEventKind::Axis { horizontal, vertical, .. } => {
-                    log::info!("Mouse wheel rotating h {} v {}", horizontal.discrete, vertical.discrete);
+                PointerEventKind::Axis {
+                    horizontal,
+                    vertical,
+                    ..
+                } => {
+                    log::info!(
+                        "Mouse wheel rotating h {} v {}",
+                        horizontal.discrete,
+                        vertical.discrete
+                    );
                 }
                 _ => {}
             }
@@ -352,7 +397,12 @@ impl sctk::seat::SeatHandler for Bar {
         &mut self.seat_state
     }
 
-    fn new_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: protocol::wl_seat::WlSeat) {
+    fn new_seat(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: protocol::wl_seat::WlSeat,
+    ) {
         // Ignored
     }
 
@@ -380,7 +430,12 @@ impl sctk::seat::SeatHandler for Bar {
         todo!()
     }
 
-    fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: protocol::wl_seat::WlSeat) {
+    fn remove_seat(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: protocol::wl_seat::WlSeat,
+    ) {
         todo!()
     }
 }
