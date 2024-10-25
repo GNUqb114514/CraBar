@@ -7,6 +7,7 @@ use sctk::registry::ProvidesRegistryState;
 use sctk::shell::xdg::window::{self, Window, WindowConfigure};
 use sctk::shell::WaylandSurface;
 use sctk::shm::slot;
+use smithay_client_toolkit::seat::pointer::PointerEventKind;
 use smithay_client_toolkit as sctk;
 use smithay_client_toolkit::shm::slot::Buffer;
 use wayland_client::protocol::wl_output::{Transform, WlOutput};
@@ -25,6 +26,8 @@ pub struct Bar {
     layer: sctk::shell::wlr_layer::LayerSurface,
     req_exit: bool,
     queue_handler: QueueHandle<Bar>,
+    seat_state: sctk::seat::SeatState,
+    pointer: Option<wayland_client::protocol::wl_pointer::WlPointer>,
 }
 
 impl ProvidesRegistryState for Bar {
@@ -131,6 +134,7 @@ impl Bar {
 
         let pool = sctk::shm::slot::SlotPool::new(122880, &shm).unwrap();
 
+        let seat_state = smithay_client_toolkit::seat::SeatState::new(&globals, &qh);
         (
             Bar {
                 config,
@@ -144,6 +148,8 @@ impl Bar {
                 buffer: None,
                 layer,
                 queue_handler: qh,
+                seat_state,
+                pointer: None,
             },
             event_queue,
         )
@@ -305,8 +311,7 @@ impl sctk::shell::wlr_layer::LayerShellHandler for Bar {
         _layer: &smithay_client_toolkit::shell::wlr_layer::LayerSurface,
         configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
         _serial: u32,
-    ) {
-        if configure.new_size == (0, 0) {
+    ) { if configure.new_size == (0, 0) {
             self.width = 1024;
             self.height = 30;
         } else {
@@ -317,6 +322,69 @@ impl sctk::shell::wlr_layer::LayerShellHandler for Bar {
     }
 }
 
+impl sctk::seat::pointer::PointerHandler for Bar {
+    fn pointer_frame(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _pointer: &protocol::wl_pointer::WlPointer,
+        events: &[smithay_client_toolkit::seat::pointer::PointerEvent],
+    ) {
+        for event in events {
+            if event.surface != *self.layer.wl_surface() {
+                continue;
+            }
+            match event.kind {
+                PointerEventKind::Release { button, .. } => {
+                    log::info!("Pointer release key {}", button);
+                }
+                PointerEventKind::Axis { horizontal, vertical, .. } => {
+                    log::info!("Mouse wheel rotating h {} v {}", horizontal.discrete, vertical.discrete);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+impl sctk::seat::SeatHandler for Bar {
+    fn seat_state(&mut self) -> &mut smithay_client_toolkit::seat::SeatState {
+        &mut self.seat_state
+    }
+
+    fn new_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: protocol::wl_seat::WlSeat) {
+        // Ignored
+    }
+
+    fn new_capability(
+        &mut self,
+        _conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: protocol::wl_seat::WlSeat,
+        capability: smithay_client_toolkit::seat::Capability,
+    ) {
+        if capability == sctk::seat::Capability::Pointer && self.pointer.is_none() {
+            log::info!("Initializing pointer");
+            let pointer = self.seat_state.get_pointer(qh, &seat).unwrap();
+            self.pointer = Some(pointer);
+        }
+    }
+
+    fn remove_capability(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: protocol::wl_seat::WlSeat,
+        _capability: smithay_client_toolkit::seat::Capability,
+    ) {
+        todo!()
+    }
+
+    fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: protocol::wl_seat::WlSeat) {
+        todo!()
+    }
+}
+
 sctk::delegate_registry!(Bar);
 sctk::delegate_compositor!(Bar);
 sctk::delegate_xdg_shell!(Bar);
@@ -324,3 +392,5 @@ sctk::delegate_xdg_window!(Bar);
 sctk::delegate_output!(Bar);
 sctk::delegate_shm!(Bar);
 sctk::delegate_layer!(Bar);
+sctk::delegate_seat!(Bar);
+sctk::delegate_pointer!(Bar);
