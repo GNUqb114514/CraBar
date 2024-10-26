@@ -9,6 +9,7 @@ clap = { version = "4.5.20", features = ["derive"] }
 env_logger = "0.11.5"
 fontconfig-rs = "0.1.1"
 log = "0.4.22"
+peg = "0.8.4"
 rusttype = "0.9.3"
 smithay-client-toolkit = "0.19.2"
 wayland-client = "0.31.6"

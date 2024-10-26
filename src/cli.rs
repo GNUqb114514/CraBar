@@ -1,6 +1,6 @@
 use clap::Parser;
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub struct Color {
     r: u8,
     g: u8,
@@ -108,19 +108,19 @@ impl core::str::FromStr for Color {
                 4 => {
                     let number = u32::from_str_radix(s.get(1..).ok_or(())?, 16).map_err(|_| ())?;
                     Color::new(
-                        ((number & 0xf00) >> 4).try_into().map_err(|_| ())?,
-                        ((number & 0x0f0) >> 0).try_into().map_err(|_| ())?,
-                        ((number & 0x00f) << 4).try_into().map_err(|_| ())?,
+                        TryInto::<u8>::try_into((number & 0xf00) >> 8).map_err(|_| ())? * 0x11,
+                        TryInto::<u8>::try_into((number & 0x0f0) >> 4).map_err(|_| ())? * 0x11,
+                        TryInto::<u8>::try_into((number & 0x00f) >> 0).map_err(|_| ())? * 0x11,
                         0xff,
                     )
                 }
                 5 => {
                     let number = u32::from_str_radix(s.get(1..).ok_or(())?, 16).map_err(|_| ())?;
                     Color::new(
-                        ((number & 0xf000) >> 4).try_into().map_err(|_| ())?,
-                        ((number & 0x0f00) >> 0).try_into().map_err(|_| ())?,
-                        ((number & 0x00f0) << 4).try_into().map_err(|_| ())?,
-                        ((number & 0xf000) >> 8).try_into().map_err(|_| ())?,
+                        TryInto::<u8>::try_into((number & 0x0f00) >> 8).map_err(|_| ())? * 0x11,
+                        TryInto::<u8>::try_into((number & 0x00f0) >> 4).map_err(|_| ())? * 0x11,
+                        TryInto::<u8>::try_into((number & 0x000f) >> 0).map_err(|_| ())? * 0x11,
+                        TryInto::<u8>::try_into((number & 0xf000) >> 12).map_err(|_| ())? * 0x11,
                     )
                 }
                 7 => {

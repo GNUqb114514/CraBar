@@ -349,7 +349,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                 PointerEventKind::Release { button, .. } => {
                     let splitted_content = /* some process */ vec![self.data.clone()];
                     let mut number = None;
-                    let mut margin:f64 = 5.;
+                    let mut margin: f64 = 5.;
                     for (idx, content) in splitted_content.iter().enumerate() {
                         let font = rusttype::Font::try_from_vec(
                             std::fs::read::<&std::path::Path>(self.fontpath.as_ref()).unwrap(),
@@ -363,7 +363,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         );
                         let (width, _) = text_obj.get_region();
                         let width = width as f64 + margin;
-                        let right_bound = margin+width;
+                        let right_bound = margin + width;
                         if (margin..right_bound).contains(&event.position.0) {
                             number = Some(idx);
                         }

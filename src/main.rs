@@ -2,7 +2,10 @@ use clap::Parser;
 use status::Bar;
 
 mod cli;
+mod parse;
 mod status;
+#[cfg(test)]
+mod test;
 mod text;
 
 fn main() {
