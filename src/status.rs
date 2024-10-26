@@ -1,6 +1,6 @@
 use crate::cli;
-use crate::text::Paint;
-use crate::text::Paintable;
+use crate::paint::Paint;
+use crate::paint::Paintable;
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
@@ -225,7 +225,7 @@ impl Bar {
         //    stride as usize,
         //    andrew::Endian::Big,
         //);
-        let mut canvas = crate::text::Canvas::new(height as usize, width as usize, canvas);
+        let mut canvas = crate::paint::Canvas::new(height as usize, width as usize, canvas);
         {
             //canvas
             //    .buffer
@@ -246,7 +246,7 @@ impl Bar {
             let font = config.find("sans-serif".to_string(), None);
             let fontpath = font.unwrap().path;
             let fontdata = std::fs::read(fontpath).unwrap();
-            let text = crate::text::Text::new(
+            let text = crate::paint::Text::new(
                 self.data.clone(),
                 rusttype::Font::try_from_bytes(&fontdata).unwrap(),
                 self.config.foreground_color(),
@@ -338,7 +338,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        pointer: &protocol::wl_pointer::WlPointer,
+        _pointer: &protocol::wl_pointer::WlPointer,
         events: &[smithay_client_toolkit::seat::pointer::PointerEvent],
     ) {
         for event in events {
@@ -349,13 +349,13 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                 PointerEventKind::Release { button, .. } => {
                     let splitted_content = /* some process */ vec![self.data.clone()];
                     let mut number = None;
-                    let mut margin: f64 = 5.;
+                    let mut margin:f64 = 5.;
                     for (idx, content) in splitted_content.iter().enumerate() {
                         let font = rusttype::Font::try_from_vec(
                             std::fs::read::<&std::path::Path>(self.fontpath.as_ref()).unwrap(),
                         )
                         .unwrap();
-                        let text_obj = crate::text::Text::new(
+                        let text_obj = crate::paint::Text::new(
                             content.to_owned(),
                             font,
                             self.config.foreground_color(),
@@ -363,7 +363,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         );
                         let (width, _) = text_obj.get_region();
                         let width = width as f64 + margin;
-                        let right_bound = margin + width;
+                        let right_bound = margin+width;
                         if (margin..right_bound).contains(&event.position.0) {
                             number = Some(idx);
                         }

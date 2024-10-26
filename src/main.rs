@@ -6,7 +6,7 @@ mod parse;
 mod status;
 #[cfg(test)]
 mod test;
-mod text;
+mod paint;
 
 fn main() {
     env_logger::init();
