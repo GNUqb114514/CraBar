@@ -345,8 +345,8 @@ impl Bar {
                         margin_left += text.get_region().0 as usize;
                     }
                     crate::parse::StyledStringPart::Style(style) => {
-                        fg = style.foreground_color().unwrap_or(fg);
-                        bg = style.background_color().unwrap_or(bg);
+                        fg = style.foreground_color().into_color(self.config.foreground_color(), fg);
+                        bg = style.background_color().into_color(self.config.background_color(), bg);
                     }
                     crate::parse::StyledStringPart::Action(_) => {} // Actions are not relative to
                     // rendering

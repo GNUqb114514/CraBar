@@ -1,5 +1,3 @@
-use crate::cli::Color;
-
 #[derive(PartialEq, Debug, Default)]
 pub struct StyledString {
     content: Vec<StyledStringPart>,
@@ -51,25 +49,43 @@ pub enum StyledStringPart {
     ActionEnd,
 }
 
+#[derive(Debug)]
+#[derive(PartialEq)]
+#[derive(Clone, Copy)]
+pub enum Color {
+    Default, Now,
+    New(crate::cli::Color),
+}
+
+impl Color {
+    pub fn into_color(self, default: crate::cli::Color, now: crate::cli::Color) -> crate::cli::Color {
+        match self {
+            Self::Default => default,
+            Self::Now => now,
+            Self::New(a) => a,
+        }
+    }
+}
+
 #[derive(PartialEq, Debug)]
 pub struct Style {
-    foreground_color: Option<Color>,
-    background_color: Option<Color>,
+    foreground_color: Color,
+    background_color: Color,
 }
 
 impl Style {
-    pub fn new(foreground_color: Option<Color>, background_color: Option<Color>) -> Self {
+    pub fn new(foreground_color: Color, background_color: Color) -> Self {
         Self {
             foreground_color,
             background_color,
         }
     }
 
-    pub fn foreground_color(&self) -> Option<Color> {
+    pub fn foreground_color(&self) -> Color {
         self.foreground_color
     }
 
-    pub fn background_color(&self) -> Option<Color> {
+    pub fn background_color(&self) -> Color {
         self.background_color
     }
 }
@@ -81,8 +97,10 @@ peg::parser! {
             format!("#{}", n.iter().collect::<String>()).parse().map_err(|_| "Invalid string")
         }
         rule formatting_block() -> Style
-            = "%{B" c:color() "}" {Style{foreground_color:None, background_color:Some(c)}}
-            / "%{F" c:color() "}" {Style{foreground_color:Some(c), background_color:None}}
+            = "%{B" c:color() "}" {Style{foreground_color:Color::Now, background_color:Color::New(c)}}
+            / "%{F" c:color() "}" {Style{foreground_color:Color::New(c), background_color:Color::Now}}
+            / "%{B-}" {Style{foreground_color:Color::Now, background_color:Color::Default}}
+            / "%{F-}" {Style{background_color:Color::Now, foreground_color:Color::Default}}
         rule action() -> StyledStringPart
             = "%{A" button:(['1'..='5']?) ":" cmd:([^':']+) ":}" {?
                 Ok(StyledStringPart::Action(Action{
