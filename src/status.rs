@@ -447,14 +447,24 @@ impl sctk::seat::pointer::PointerHandler for Bar {
             match event.kind {
                 PointerEventKind::Release { button, .. } => {
                     let splitted_content = self.parse_to_actions().unwrap();
-                    let mut number = None;
+                    let mut matched = None;
                     for (idx, content) in splitted_content.into_iter().enumerate() {
-                        if (content.start..content.end).contains(&(event.position.0 as usize)) {
-                            number = Some(idx);
+                        if (content.start..content.end).contains(&(event.position.0 as usize))
+                            && crate::consts::wayland2bar(button)
+                                .is_some_and(|v| v == content.button as u32)
+                        {
+                            let number = idx;
+                            let action = content.cmd;
+                            matched = Some((number, action));
                         }
                     }
-                    if let Some(number) = number {
-                        log::info!("Pointer release key {} at #{}", button, number);
+                    if let Some((number, action)) = matched {
+                        log::info!(
+                            "Pointer release key {} triggering action #{}",
+                            button,
+                            number
+                        );
+                        println!("{}", action);
                     } else {
                         log::info!("Pointer release key {} at nowhere", button);
                     }

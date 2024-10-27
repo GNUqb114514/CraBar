@@ -167,9 +167,10 @@ impl<'font> Text<'font> {
         let scale = rusttype::Scale::uniform(20.);
         let v_metrics = self.font.v_metrics(scale);
         let height = v_metrics.ascent - v_metrics.descent;
+        let content = self.content.replace(" ", "a");
         let glyphs: Vec<_> = self
             .font
-            .layout(&self.content, scale, rusttype::point(0., 0.))
+            .layout(&content, scale, rusttype::point(0., 0.))
             .collect();
         let width = {
             let min_x = glyphs
