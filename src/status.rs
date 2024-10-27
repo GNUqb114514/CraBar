@@ -147,20 +147,27 @@ impl Bar {
                 crate::parse::StyledStringPart::Action(action) => {
                     let (button, cmd) = action.into_tuple();
                     pending = Some(Action {
-                        button, cmd,
+                        button,
+                        cmd,
                         start: cursor,
                         end: 0, // Temp
                     });
                 }
                 crate::parse::StyledStringPart::ActionEnd => {
                     if let Some(pending) = std::mem::take(&mut pending) {
-                        retval.push(Action{end:cursor, ..pending})
+                        retval.push(Action {
+                            end: cursor,
+                            ..pending
+                        })
                     }
                 }
             }
         }
         if let Some(pending) = pending {
-            retval.push(Action{end:cursor, ..pending})
+            retval.push(Action {
+                end: cursor,
+                ..pending
+            })
         }
         Ok(retval)
     }
@@ -342,7 +349,7 @@ impl Bar {
                         bg = style.background_color().unwrap_or(bg);
                     }
                     crate::parse::StyledStringPart::Action(_) => {} // Actions are not relative to
-                                                                    // rendering
+                    // rendering
                     crate::parse::StyledStringPart::ActionEnd => {} // Actions are not relative to
                                                                     // rendering
                 }

@@ -26,6 +26,10 @@ pub struct Action {
 }
 
 impl Action {
+    pub fn new(button: u8, cmd: String) -> Self {
+        Self { button, cmd }
+    }
+
     pub fn button(&self) -> u8 {
         self.button
     }
@@ -79,16 +83,16 @@ peg::parser! {
         rule formatting_block() -> Style
             = "%{B" c:color() "}" {Style{foreground_color:None, background_color:Some(c)}}
             / "%{F" c:color() "}" {Style{foreground_color:Some(c), background_color:None}}
-        rule action() -> Action
-            = "%{A:" button:(['1'..='5']?) ":" cmd:([^'}']*) ":}" {?
-                Ok(Action{
-                    button:button.unwrap_or('1').try_into().map_err(|_| "Invalid button no")?, cmd:cmd.iter().collect()
-                })
+        rule action() -> StyledStringPart
+            = "%{A" button:(['1'..='5']?) ":" cmd:([^':']+) ":}" {?
+                Ok(StyledStringPart::Action(Action{
+                    button:button.unwrap_or('1') as u8 - '0' as u8, cmd:cmd.iter().collect()
+                }))
             }
+            / "%{A}" {StyledStringPart::ActionEnd}
         rule part() -> StyledStringPart
             = f:formatting_block() {StyledStringPart::Style(f)}
-            / a:action() {StyledStringPart::Action(a)}
-            / "%{A}" {StyledStringPart::ActionEnd}
+            / a:action() {a}
             / s:([^'%']+) {StyledStringPart::String(s.iter().collect())}
         pub rule string() -> StyledString
             = c:(part()*) {StyledString{content:c}}

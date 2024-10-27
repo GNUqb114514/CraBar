@@ -28,4 +28,15 @@ fn test_parse() {
             StyledStringPart::String("test".into())
         ])
     );
+
+    let str = "%{A:test:}test%{A}";
+    let styled: StyledString = str.parse().unwrap();
+    assert_eq!(
+        styled,
+        StyledString::new(vec![
+            StyledStringPart::Action(Action::new(1, "test".into())),
+            StyledStringPart::String("test".into()),
+            StyledStringPart::ActionEnd,
+        ])
+    );
 }
