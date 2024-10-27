@@ -264,7 +264,7 @@ impl Bar {
                         let text = crate::paint::Text::new(string, font.clone(), fg, bg);
                         for y in 0..height {
                             for x in margin_left..(text.get_region().0 as usize + margin_left) {
-                                canvas.draw_pixel(x+1, y as usize, bg).unwrap();
+                                canvas.draw_pixel(x + 1, y as usize, bg).unwrap();
                             }
                         }
                         let mut slice = canvas
@@ -376,10 +376,19 @@ impl sctk::seat::pointer::PointerHandler for Bar {
             }
             match event.kind {
                 PointerEventKind::Release { button, .. } => {
-                    let splitted_content = /* some process */ vec![self.data.clone()];
+                    let splitted_content = self
+                        .data
+                        .parse::<crate::parse::StyledString>()
+                        .unwrap_or_default()
+                        .into_content()
+                        .into_iter()
+                        .filter_map(|v| match v {
+                            crate::parse::StyledStringPart::Style(_) => None,
+                            crate::parse::StyledStringPart::String(str) => Some(str),
+                        });
                     let mut number = None;
                     let mut margin: f64 = 5.;
-                    for (idx, content) in splitted_content.iter().enumerate() {
+                    for (idx, content) in splitted_content.enumerate() {
                         let font = rusttype::Font::try_from_vec(
                             std::fs::read::<&std::path::Path>(self.fontpath.as_ref()).unwrap(),
                         )
