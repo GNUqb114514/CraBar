@@ -20,9 +20,31 @@ impl StyledString {
 }
 
 #[derive(PartialEq, Debug)]
+pub struct Action {
+    button: u8,
+    cmd: String,
+}
+
+impl Action {
+    pub fn button(&self) -> u8 {
+        self.button
+    }
+
+    pub fn cmd(&self) -> &str {
+        &self.cmd
+    }
+
+    pub fn into_tuple(self) -> (u8, String) {
+        (self.button, self.cmd)
+    }
+}
+
+#[derive(PartialEq, Debug)]
 pub enum StyledStringPart {
     String(String),
     Style(Style),
+    Action(Action),
+    ActionEnd,
 }
 
 #[derive(PartialEq, Debug)]
@@ -57,8 +79,16 @@ peg::parser! {
         rule formatting_block() -> Style
             = "%{B" c:color() "}" {Style{foreground_color:None, background_color:Some(c)}}
             / "%{F" c:color() "}" {Style{foreground_color:Some(c), background_color:None}}
+        rule action() -> Action
+            = "%{A:" button:(['1'..='5']?) ":" cmd:([^'}']*) ":}" {?
+                Ok(Action{
+                    button:button.unwrap_or('1').try_into().map_err(|_| "Invalid button no")?, cmd:cmd.iter().collect()
+                })
+            }
         rule part() -> StyledStringPart
             = f:formatting_block() {StyledStringPart::Style(f)}
+            / a:action() {StyledStringPart::Action(a)}
+            / "%{A}" {StyledStringPart::ActionEnd}
             / s:([^'%']+) {StyledStringPart::String(s.iter().collect())}
         pub rule string() -> StyledString
             = c:(part()*) {StyledString{content:c}}

@@ -105,7 +105,66 @@ impl CompositorHandler for Bar {
     }
 }
 
+struct Action {
+    button: u8,
+    cmd: String,
+    start: usize,
+    end: usize,
+}
+
 impl Bar {
+    fn get_width(&self, string: &str) -> f32 {
+        let font = rusttype::Font::try_from_vec(
+            std::fs::read::<&std::path::Path>(self.fontpath.as_ref()).unwrap(),
+        )
+        .unwrap();
+        let text_obj = crate::paint::Text::new(
+            string.to_owned(),
+            font,
+            self.config.foreground_color(),
+            self.config.background_color(),
+        );
+        let (width, _) = text_obj.get_region();
+        width
+    }
+
+    fn parse_to_actions(&self) -> Result<Vec<Action>, ()> {
+        let mut cursor = 5;
+        let mut retval = vec![];
+        let mut pending = None;
+        for i in self
+            .data
+            .parse::<crate::parse::StyledString>()
+            .map_err(|_| ())?
+            .into_content()
+        {
+            match i {
+                crate::parse::StyledStringPart::Style(_) => {} // Styles are irrelevant to action
+                // handling
+                crate::parse::StyledStringPart::String(string) => {
+                    cursor += self.get_width(&string) as usize;
+                }
+                crate::parse::StyledStringPart::Action(action) => {
+                    let (button, cmd) = action.into_tuple();
+                    pending = Some(Action {
+                        button, cmd,
+                        start: cursor,
+                        end: 0, // Temp
+                    });
+                }
+                crate::parse::StyledStringPart::ActionEnd => {
+                    if let Some(pending) = std::mem::take(&mut pending) {
+                        retval.push(Action{end:cursor, ..pending})
+                    }
+                }
+            }
+        }
+        if let Some(pending) = pending {
+            retval.push(Action{end:cursor, ..pending})
+        }
+        Ok(retval)
+    }
+
     pub fn new(config: cli::Config) -> (Self, wayland_client::EventQueue<Self>) {
         let conn = Connection::connect_to_env().unwrap();
 
@@ -282,6 +341,10 @@ impl Bar {
                         fg = style.foreground_color().unwrap_or(fg);
                         bg = style.background_color().unwrap_or(bg);
                     }
+                    crate::parse::StyledStringPart::Action(_) => {} // Actions are not relative to
+                                                                    // rendering
+                    crate::parse::StyledStringPart::ActionEnd => {} // Actions are not relative to
+                                                                    // rendering
                 }
             }
             //let text = crate::paint::Text::new(
@@ -376,36 +439,12 @@ impl sctk::seat::pointer::PointerHandler for Bar {
             }
             match event.kind {
                 PointerEventKind::Release { button, .. } => {
-                    let splitted_content = self
-                        .data
-                        .parse::<crate::parse::StyledString>()
-                        .unwrap_or_default()
-                        .into_content()
-                        .into_iter()
-                        .filter_map(|v| match v {
-                            crate::parse::StyledStringPart::Style(_) => None,
-                            crate::parse::StyledStringPart::String(str) => Some(str),
-                        });
+                    let splitted_content = self.parse_to_actions().unwrap();
                     let mut number = None;
-                    let mut margin: f64 = 5.;
-                    for (idx, content) in splitted_content.enumerate() {
-                        let font = rusttype::Font::try_from_vec(
-                            std::fs::read::<&std::path::Path>(self.fontpath.as_ref()).unwrap(),
-                        )
-                        .unwrap();
-                        let text_obj = crate::paint::Text::new(
-                            content.to_owned(),
-                            font,
-                            self.config.foreground_color(),
-                            self.config.background_color(),
-                        );
-                        let (width, _) = text_obj.get_region();
-                        let width = width as f64 + margin;
-                        let right_bound = margin + width;
-                        if (margin..right_bound).contains(&event.position.0) {
+                    for (idx, content) in splitted_content.into_iter().enumerate() {
+                        if (content.start..content.end).contains(&(event.position.0 as usize)) {
                             number = Some(idx);
                         }
-                        margin += width;
                     }
                     if let Some(number) = number {
                         log::info!("Pointer release key {} at #{}", button, number);

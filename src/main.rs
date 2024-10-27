@@ -2,6 +2,7 @@ use clap::Parser;
 use status::Bar;
 
 mod cli;
+mod consts;
 mod paint;
 mod parse;
 mod status;
