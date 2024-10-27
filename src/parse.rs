@@ -49,16 +49,19 @@ pub enum StyledStringPart {
     ActionEnd,
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
-#[derive(Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Color {
-    Default, Now,
+    Default,
+    Now,
     New(crate::cli::Color),
 }
 
 impl Color {
-    pub fn into_color(self, default: crate::cli::Color, now: crate::cli::Color) -> crate::cli::Color {
+    pub fn into_color(
+        self,
+        default: crate::cli::Color,
+        now: crate::cli::Color,
+    ) -> crate::cli::Color {
         match self {
             Self::Default => default,
             Self::Now => now,

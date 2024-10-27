@@ -345,8 +345,12 @@ impl Bar {
                         margin_left += text.get_region().0 as usize;
                     }
                     crate::parse::StyledStringPart::Style(style) => {
-                        fg = style.foreground_color().into_color(self.config.foreground_color(), fg);
-                        bg = style.background_color().into_color(self.config.background_color(), bg);
+                        fg = style
+                            .foreground_color()
+                            .into_color(self.config.foreground_color(), fg);
+                        bg = style
+                            .background_color()
+                            .into_color(self.config.background_color(), bg);
                     }
                     crate::parse::StyledStringPart::Action(_) => {} // Actions are not relative to
                     // rendering
@@ -466,19 +470,41 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         );
                         println!("{}", action);
                     } else {
-                        log::info!("Pointer release key {} at nowhere", button);
+                        log::info!("Pointer release key {} triggering nothing", button);
                     }
                 }
-                PointerEventKind::Axis {
-                    horizontal,
-                    vertical,
-                    ..
-                } => {
-                    log::info!(
-                        "Mouse wheel rotating h {} v {}",
-                        horizontal.discrete,
-                        vertical.discrete
-                    );
+                PointerEventKind::Axis { vertical, .. } => {
+                    let action = if vertical.discrete > 0 {
+                        5
+                    } else if vertical.discrete < 0 {
+                        4
+                    } else {
+                        0
+                    };
+                    let splitted_content = self.parse_to_actions().unwrap();
+                    let mut matched = None;
+                    for (idx, content) in splitted_content.into_iter().enumerate() {
+                        if (content.start..content.end).contains(&(event.position.0 as usize))
+                            && action == content.button
+                        {
+                            let number = idx;
+                            let action = content.cmd;
+                            matched = Some((number, action));
+                        }
+                    }
+                    if let Some((number, action)) = matched {
+                        log::info!(
+                            "Mouse wheel rotating v {} triggering #{}",
+                            vertical.discrete,
+                            number,
+                        );
+                        println!("{}", action);
+                    } else {
+                        log::info!(
+                            "Mouse wheel rotating v {} triggering nothing",
+                            vertical.discrete,
+                        );
+                    }
                 }
                 _ => {}
             }
