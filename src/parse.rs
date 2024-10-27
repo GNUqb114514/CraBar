@@ -1,6 +1,6 @@
 use crate::cli::Color;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Default)]
 pub struct StyledString {
     content: Vec<StyledStringPart>,
 }
@@ -12,6 +12,10 @@ impl StyledString {
 
     pub fn content(&self) -> &[StyledStringPart] {
         &self.content
+    }
+
+    pub fn into_content(self) -> Vec<StyledStringPart> {
+        self.content
     }
 }
 

@@ -2,11 +2,11 @@ use clap::Parser;
 use status::Bar;
 
 mod cli;
+mod paint;
 mod parse;
 mod status;
 #[cfg(test)]
 mod test;
-mod paint;
 
 fn main() {
     env_logger::init();

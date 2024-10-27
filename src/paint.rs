@@ -190,7 +190,7 @@ impl Paint for Text<'_> {
     fn paint(&self, canvas: &mut impl Paintable) -> Result<(), ()> {
         let scale = rusttype::Scale::uniform(20.);
         let v_metrics = self.font.v_metrics(scale);
-        let start = rusttype::point(5.0, v_metrics.ascent);
+        let start = rusttype::point(0., v_metrics.ascent);
         let glyphs = self.font.layout(&self.content, scale, start);
         for glyph in glyphs {
             if let Some(bounding_box) = glyph.pixel_bounding_box() {

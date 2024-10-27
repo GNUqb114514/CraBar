@@ -246,22 +246,51 @@ impl Bar {
             let font = config.find("sans-serif".to_string(), None);
             let fontpath = font.unwrap().path;
             let fontdata = std::fs::read(fontpath).unwrap();
-            let text = crate::paint::Text::new(
-                self.data.clone(),
-                rusttype::Font::try_from_bytes(&fontdata).unwrap(),
-                self.config.foreground_color(),
-                self.config.background_color(),
-            );
-            text.paint(&mut canvas).unwrap();
-            //let text = andrew::text::Text::new(
-            //    (5, 5),
-            //    (&cli::Color::new(0, 0, 0, 0)).into(),
-            //    &fontdata,
-            //    20.,
-            //    1.,
-            //    "Test",
+            let font = rusttype::Font::try_from_bytes(&fontdata).unwrap();
+
+            let mut fg = self.config.foreground_color();
+            let mut bg = self.config.background_color();
+            let margin_top = 5;
+            let mut margin_left = 5;
+            for part in self
+                .data
+                .parse::<crate::parse::StyledString>()
+                .unwrap_or_default()
+                .into_content()
+                .into_iter()
+            {
+                match part {
+                    crate::parse::StyledStringPart::String(string) => {
+                        let text = crate::paint::Text::new(string, font.clone(), fg, bg);
+                        for y in 0..height {
+                            for x in margin_left..(text.get_region().0 as usize + margin_left) {
+                                canvas.draw_pixel(x+1, y as usize, bg).unwrap();
+                            }
+                        }
+                        let mut slice = canvas
+                            .slice(
+                                margin_left,
+                                margin_top,
+                                (width as usize - margin_left).try_into().unwrap(),
+                                (height as usize - margin_top).try_into().unwrap(),
+                            )
+                            .unwrap();
+                        text.paint(&mut slice).unwrap();
+                        margin_left += text.get_region().0 as usize;
+                    }
+                    crate::parse::StyledStringPart::Style(style) => {
+                        fg = style.foreground_color().unwrap_or(fg);
+                        bg = style.background_color().unwrap_or(bg);
+                    }
+                }
+            }
+            //let text = crate::paint::Text::new(
+            //    self.data.clone(),
+            //    font,
+            //    self.config.foreground_color(),
+            //    self.config.background_color(),
             //);
-            //text.draw(&mut canvas);
+            //text.paint(&mut canvas).unwrap();
         }
 
         self.layer
@@ -349,7 +378,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                 PointerEventKind::Release { button, .. } => {
                     let splitted_content = /* some process */ vec![self.data.clone()];
                     let mut number = None;
-                    let mut margin:f64 = 5.;
+                    let mut margin: f64 = 5.;
                     for (idx, content) in splitted_content.iter().enumerate() {
                         let font = rusttype::Font::try_from_vec(
                             std::fs::read::<&std::path::Path>(self.fontpath.as_ref()).unwrap(),
@@ -363,7 +392,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         );
                         let (width, _) = text_obj.get_region();
                         let width = width as f64 + margin;
-                        let right_bound = margin+width;
+                        let right_bound = margin + width;
                         if (margin..right_bound).contains(&event.position.0) {
                             number = Some(idx);
                         }

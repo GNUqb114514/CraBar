@@ -24,9 +24,8 @@ fn test_parse() {
     assert_eq!(
         styled,
         StyledString::new(vec![
-            StyledStringPart::Style(Style::new(
-            None,
-            Some(Color::new(0, 255, 255, 255))
-        )), StyledStringPart::String("test".into())])
+            StyledStringPart::Style(Style::new(None, Some(Color::new(0, 255, 255, 255)))),
+            StyledStringPart::String("test".into())
+        ])
     );
 }
