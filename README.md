@@ -57,3 +57,5 @@ May be managed by issues instead of sections here.
 [ ] Lightweight
     [ ] Compile profile: Working
     [ ] Small dependencies: Pending
+[ ] Speed
+    [ ] Make it faster to recv/send data like 20KB/s (current 1KB/s)
