@@ -1,6 +1,8 @@
-use crate::cli;
-use crate::paint::Paint;
-use crate::paint::Paintable;
+use std::sync::Condvar;
+use crate::{
+    cli,
+    paint::{Paint, Paintable},
+};
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
@@ -10,6 +12,8 @@ use sctk::shm::slot;
 use smithay_client_toolkit as sctk;
 use smithay_client_toolkit::seat::pointer::PointerEventKind;
 use smithay_client_toolkit::shm::slot::Buffer;
+use std::sync::Arc;
+use std::sync::Mutex;
 use wayland_client::protocol::wl_output::{Transform, WlOutput};
 use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{protocol, Connection, QueueHandle};
@@ -28,7 +32,8 @@ pub struct Bar {
     queue_handler: QueueHandle<Bar>,
     seat_state: sctk::seat::SeatState,
     pointer: Option<wayland_client::protocol::wl_pointer::WlPointer>,
-    data: String,
+    data: Arc<Mutex<(String, bool)>>,
+    condvar: Arc<Condvar>,
     fontpath: std::path::PathBuf,
 }
 
@@ -132,8 +137,8 @@ impl Bar {
         let mut cursor = 5;
         let mut retval = vec![];
         let mut pending = None;
-        for i in self
-            .data
+        let data = self.data.lock().unwrap();
+        for i in data.0
             .parse::<crate::parse::StyledString>()
             .map_err(|_| ())?
             .into_content()
@@ -222,8 +227,9 @@ impl Bar {
                 queue_handler: qh,
                 seat_state,
                 pointer: None,
-                data: "".into(),
+                data: Arc::new(Mutex::new(("".into(), false))),
                 fontpath,
+                condvar: Arc::new(Condvar::new()),
             },
             event_queue,
         )
@@ -236,26 +242,14 @@ impl Bar {
 
         self.layer.set_exclusive_zone(height as i32 + 3);
 
-        self.data.clear();
-        let stdin = std::io::stdin();
-        match stdin.read_line(&mut self.data) {
-            Ok(n) => {
-                if n == 0 {
-                    log::info!("n == 0; exiting");
-                    self.req_exit = true;
-                    return;
-                }
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::BrokenPipe => {
-                log::info!("Broken pipe; exit normally");
-                self.req_exit = true;
-                return;
-            }
-            Err(ref e) => {
-                log::error!("Cannot get new input: {}", e.kind())
-            }
+        let mut data = self.data.lock().unwrap();
+        log::info!("Pending on condvar...");
+        while !data.1 {
+            data = self.condvar.wait(data).unwrap();
         }
-        self.data.pop();
+        data.1 = false;
+        let data = &data.0;
+        log::info!("Got new data: {}", data);
 
         let buffer = self.buffer.get_or_insert_with(|| {
             self.pool
@@ -318,8 +312,7 @@ impl Bar {
             let mut bg = self.config.background_color();
             let margin_top = 5;
             let mut margin_left = 5;
-            for part in self
-                .data
+            for part in data
                 .parse::<crate::parse::StyledString>()
                 .unwrap_or_default()
                 .into_content()
@@ -381,6 +374,14 @@ impl Bar {
 
     pub fn req_exit(&self) -> bool {
         self.req_exit
+    }
+
+    pub fn data(&self) -> Arc<Mutex<(String, bool)>> {
+        self.data.clone()
+    }
+
+    pub fn condvar(&self) -> Arc<Condvar> {
+        self.condvar.clone()
     }
 }
 
