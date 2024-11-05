@@ -18,7 +18,7 @@ The newest version (release build) costs 3.4 megabytes,
 and for comparing, Xwayland-run costs 2.1 megabytes,
 `cage-satellite` costs 3.5 megabytes.
 Considering they also costs a lot of time to figure it out that
-they always actually docking lemonbar EVEN YOU SAY `-d`,
+they never actually docking lemonbar EVEN YOU SAY `-d`,
 I think this solution is sorta 'lightweight'.
 
 Further, I'm considering should I put a modified version in compile profiles to reduce compiling size.
