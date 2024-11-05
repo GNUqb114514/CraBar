@@ -31,10 +31,11 @@ pub enum StyledStringPart {
     Align(Align),
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum Align {
-    Left, Center, Right,
+    Left,
+    Center,
+    Right,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]

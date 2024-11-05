@@ -1,7 +1,7 @@
-use std::sync::Condvar;
 use crate::{
     cli,
-    paint::{Paint, Paintable}, parse::StyledStringPart,
+    paint::{Paint, Paintable},
+    parse::StyledStringPart,
 };
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
@@ -13,6 +13,7 @@ use smithay_client_toolkit as sctk;
 use smithay_client_toolkit::seat::pointer::PointerEventKind;
 use smithay_client_toolkit::shm::slot::Buffer;
 use std::sync::Arc;
+use std::sync::Condvar;
 use std::sync::Mutex;
 use wayland_client::protocol::wl_output::{Transform, WlOutput};
 use wayland_client::protocol::wl_surface::WlSurface;
@@ -117,6 +118,18 @@ struct Action {
     end: usize,
 }
 
+impl Action {
+    pub fn offset(&mut self, offset: usize) {
+        self.start += offset;
+        self.end += offset;
+    }
+
+    pub fn into_offset(mut self, offset: usize) -> Self {
+        self.offset(offset);
+        self
+    }
+}
+
 impl Bar {
     fn get_width(&self, string: &str) -> f32 {
         let font = rusttype::Font::try_from_vec(
@@ -134,11 +147,17 @@ impl Bar {
     }
 
     fn parse_to_actions(&self) -> Result<Vec<Action>, ()> {
-        let mut cursor = 5;
-        let mut retval = vec![];
+        let mut lcursor = 5;
+        let mut rcursor = 5;
+        let mut ccursor = 5;
+        let mut align = crate::parse::Align::Left;
         let mut pending = None;
         let data = self.data.lock().unwrap();
-        for i in data.0
+        let mut left = vec![];
+        let mut right = vec![];
+        let mut center = vec![];
+        for i in data
+            .0
             .parse::<crate::parse::StyledString>()
             .map_err(|_| ())?
             .into_content()
@@ -146,36 +165,85 @@ impl Bar {
             match i {
                 StyledStringPart::Style(_) => {} // Styles are irrelevant to action
                 // handling
-                StyledStringPart::String(string) => {
-                    cursor += self.get_width(&string) as usize;
-                }
+                StyledStringPart::String(string) => match align {
+                    crate::parse::Align::Left => {
+                        lcursor += self.get_width(&string) as usize;
+                    }
+                    crate::parse::Align::Right => {
+                        rcursor += self.get_width(&string) as usize;
+                    }
+                    crate::parse::Align::Center => {
+                        ccursor += self.get_width(&string) as usize;
+                    }
+                },
                 StyledStringPart::Action(action) => {
                     let (button, cmd) = action.into_tuple();
                     pending = Some(Action {
                         button,
                         cmd,
-                        start: cursor,
+                        start: lcursor,
                         end: 0, // Temp
                     });
                 }
                 StyledStringPart::ActionEnd => {
                     if let Some(pending) = std::mem::take(&mut pending) {
-                        retval.push(Action {
-                            end: cursor,
-                            ..pending
-                        })
+                        match align {
+                            crate::parse::Align::Left => left.push(Action {
+                                end: lcursor,
+                                ..pending
+                            }),
+                            crate::parse::Align::Center => center.push(Action {
+                                end: ccursor,
+                                ..pending
+                            }),
+                            crate::parse::Align::Right => right.push(Action {
+                                end: rcursor,
+                                ..pending
+                            }),
+                        }
                     }
                 }
                 StyledStringPart::Swap => {} // Styles are irrelevant to action
-                StyledStringPart::Align(_) => { log::warn!("Aligns not implemented") }
+                StyledStringPart::Align(align_) => {
+                    if pending.is_some() {
+                        log::error!("Cannot change align in actions!");
+                        continue;
+                    }
+                    align = align_;
+                }
             }
         }
         if let Some(pending) = pending {
-            retval.push(Action {
-                end: cursor,
-                ..pending
-            })
+            log::warn!("Unclosed action block; check your feeding script");
+            match align {
+                crate::parse::Align::Left => left.push(Action {
+                    end: lcursor,
+                    ..pending
+                }),
+                crate::parse::Align::Center => center.push(Action {
+                    end: ccursor,
+                    ..pending
+                }),
+                crate::parse::Align::Right => right.push(Action {
+                    end: rcursor,
+                    ..pending
+                }),
+            }
         }
+        let retval = left
+            .into_iter()
+            .map(|v| v.into_offset(5))
+            .chain(
+                center
+                    .into_iter()
+                    .map(|v| v.into_offset((self.width as usize - ccursor) / 2)),
+            )
+            .chain(
+                right
+                    .into_iter()
+                    .map(|v| v.into_offset(self.width as usize - 5 - rcursor)),
+            )
+            .collect();
         Ok(retval)
     }
 
@@ -350,11 +418,13 @@ impl Bar {
                     StyledStringPart::Swap => {
                         std::mem::swap(&mut fg, &mut bg);
                     }
-                    StyledStringPart::Align(_) => { log::warn!("Aligns not implemented") }
+                    StyledStringPart::Align(_) => {
+                        log::warn!("Aligns not implemented")
+                    }
                     StyledStringPart::Action(_) => {} // Actions are not relative to
                     // rendering
                     StyledStringPart::ActionEnd => {} // Actions are not relative to
-                                                                    // rendering
+                                                      // rendering
                 }
             }
             //let text = crate::paint::Text::new(
