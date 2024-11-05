@@ -25,37 +25,4 @@ Further, I'm considering should I put a modified version in compile profiles to 
 
 ## To-Do
 
-May be managed by issues instead of sections here.
-
-[ ] Drop-in
-    [ ] Options
-        [x] `-h`: Thanks to clap it's out of box
-        [ ] `-g`: 'Thanks' to wayland this may won't implement.
-        [ ] `-b`: Low-priority: I just wondering who'll use it
-        [ ] `-f`: Currently only Ubunto Mono
-        [ ] `-p`: Low-priority: workaround: avoid broken pipe
-        [ ] `-n`: Pending: maybe app-id?
-        [ ] `-u`: Dependencies not satisfied: there're even no underlines
-        [ ] `-B`: Another form: properly `#[args]`
-        [ ] `-F`: Same as `-B`
-        [ ] `-U`: Same as `-u`
-    [ ] Formatting blocks
-        [ ] `R`: Pending
-        [ ] `l`: Pending (hard)
-        [ ] `c`: Pending (hard)
-        [ ] `r`: Pending (hard)
-        [ ] `O`: Pending
-        [x] `B`: Drop-in implemented
-        [x] `F`: Drop-in implemented
-        [ ] `T`: Dependencies not satisfied: no fonts for choosing
-        [ ] `U`: Dependencies not satisfied: no underlines
-        [x] `A`: Drop-in implemented
-        [ ] `S`: Low-priority: same as `-b`
-        [ ] Attributes
-            [ ] `o`: Pending
-            [ ] `u`: Pending
-[ ] Lightweight
-    [ ] Compile profile: Working
-    [ ] Small dependencies: Pending
-[ ] Speed
-    [ ] Make it faster to recv/send data like 20KB/s (current 1KB/s)
+Now managed by [issues](https://github.com/GNUqb114514/CraBar/issues) and [milestones](https://github.com/GNUqb114514/CraBar/milestones).
