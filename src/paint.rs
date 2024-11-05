@@ -143,7 +143,7 @@ impl Paintable for Canvas<'_> {
 pub struct Text<'font> {
     //content: String,
     content: String,
-    font: rusttype::Font<'font>,
+    font: &'font rusttype::Font<'font>,
     fg_color: Color,
     bg_color: Color,
 }
@@ -151,7 +151,7 @@ pub struct Text<'font> {
 impl<'font> Text<'font> {
     pub fn new(
         content: String,
-        font: rusttype::Font<'font>,
+        font: &'font rusttype::Font<'font>,
         fg_color: Color,
         bg_color: Color,
     ) -> Self {

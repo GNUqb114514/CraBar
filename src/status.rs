@@ -1,8 +1,9 @@
 use crate::{
-    cli,
-    paint::{Paint, Paintable},
+    cli::{self, Color},
+    paint::Paintable,
     parse::StyledStringPart,
 };
+use crate::paint::Paint;
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
@@ -111,6 +112,7 @@ impl CompositorHandler for Bar {
     }
 }
 
+#[derive(Debug)]
 struct Action {
     button: u8,
     cmd: String,
@@ -118,7 +120,27 @@ struct Action {
     end: usize,
 }
 
+struct Command {
+    string: String,
+    fg: Color,
+    bg: Color,
+    start: usize,
+    end: usize,
+}
+
 impl Action {
+    pub fn offset(&mut self, offset: usize) {
+        self.start += offset;
+        self.end += offset;
+    }
+
+    pub fn into_offset(mut self, offset: usize) -> Self {
+        self.offset(offset);
+        self
+    }
+}
+
+impl Command {
     pub fn offset(&mut self, offset: usize) {
         self.start += offset;
         self.end += offset;
@@ -138,7 +160,7 @@ impl Bar {
         .unwrap();
         let text_obj = crate::paint::Text::new(
             string.to_owned(),
-            font,
+            &font,
             self.config.foreground_color(),
             self.config.background_color(),
         );
@@ -147,9 +169,9 @@ impl Bar {
     }
 
     fn parse_to_actions(&self) -> Result<Vec<Action>, ()> {
-        let mut lcursor = 5;
-        let mut rcursor = 5;
-        let mut ccursor = 5;
+        let mut lcursor = 0;
+        let mut rcursor = 0;
+        let mut ccursor = 0;
         let mut align = crate::parse::Align::Left;
         let mut pending = None;
         let data = self.data.lock().unwrap();
@@ -181,7 +203,11 @@ impl Bar {
                     pending = Some(Action {
                         button,
                         cmd,
-                        start: lcursor,
+                        start: match align {
+                            crate::parse::Align::Left => lcursor,
+                            crate::parse::Align::Center => ccursor,
+                            crate::parse::Align::Right => rcursor,
+                        },
                         end: 0, // Temp
                     });
                 }
@@ -321,6 +347,70 @@ impl Bar {
         let data = &data.0;
         log::info!("Got new data: {}", data);
 
+        let mut fg = self.config.foreground_color();
+        let mut bg = self.config.background_color();
+        let mut lcursor = 5;
+        let mut rcursor = 5;
+        let mut ccursor = 5;
+        let mut align = crate::parse::Align::Left;
+        let mut left = vec![];
+        let mut right = vec![];
+        let mut center = vec![];
+        for i in data
+            .parse::<crate::parse::StyledString>()
+            .unwrap()
+            .into_content()
+        {
+            match i {
+                StyledStringPart::Style(style) => {
+                    fg = style
+                        .foreground_color()
+                        .into_color(self.config.foreground_color(), fg);
+                    bg = style
+                        .background_color()
+                        .into_color(self.config.background_color(), bg);
+                }
+                StyledStringPart::String(string) => match align {
+                    crate::parse::Align::Left => {
+                        let width = self.get_width(&string) as usize;
+                        left.push(Command { fg, bg, string, start:lcursor, end:lcursor + width });
+                        lcursor += width;
+                    }
+                    crate::parse::Align::Right => {
+                        let width = self.get_width(&string) as usize;
+                        right.push(Command { fg, bg, string, start:rcursor, end:rcursor + width });
+                        rcursor += width;
+                    }
+                    crate::parse::Align::Center => {
+                        let width = self.get_width(&string) as usize;
+                        center.push(Command { fg, bg, string, start:ccursor, end:ccursor + width });
+                        ccursor += width;
+                    }
+                },
+                StyledStringPart::Action(_) => {} // Actions are irrelevant to rendering
+                StyledStringPart::ActionEnd => {}      // Actions are irrelevant to rendering
+                StyledStringPart::Swap => {
+                    std::mem::swap(&mut fg, &mut bg);
+                }
+                StyledStringPart::Align(align_) => {
+                    align = align_;
+                }
+            }
+        }
+        let cmds = left
+            .into_iter()
+            .map(|v| v.into_offset(5))
+            .chain(
+                center
+                    .into_iter()
+                    .map(|v| v.into_offset((self.width as usize - ccursor) / 2)),
+            )
+            .chain(
+                right
+                    .into_iter()
+                    .map(|v| v.into_offset(self.width as usize - 5 - rcursor)),
+            );
+
         let buffer = self.buffer.get_or_insert_with(|| {
             self.pool
                 .create_buffer(
@@ -378,62 +468,12 @@ impl Bar {
             let fontdata = std::fs::read(fontpath).unwrap();
             let font = rusttype::Font::try_from_bytes(&fontdata).unwrap();
 
-            let mut fg = self.config.foreground_color();
-            let mut bg = self.config.background_color();
-            let margin_top = 5;
-            let mut margin_left = 5;
-            for part in data
-                .parse::<crate::parse::StyledString>()
-                .unwrap_or_default()
-                .into_content()
-                .into_iter()
-            {
-                match part {
-                    StyledStringPart::String(string) => {
-                        let text = crate::paint::Text::new(string, font.clone(), fg, bg);
-                        for y in 0..height {
-                            for x in margin_left..(text.get_region().0 as usize + margin_left) {
-                                canvas.draw_pixel(x + 1, y as usize, bg).unwrap();
-                            }
-                        }
-                        let mut slice = canvas
-                            .slice(
-                                margin_left,
-                                margin_top,
-                                (width as usize - margin_left).try_into().unwrap(),
-                                (height as usize - margin_top).try_into().unwrap(),
-                            )
-                            .unwrap();
-                        text.paint(&mut slice).unwrap();
-                        margin_left += text.get_region().0 as usize;
-                    }
-                    StyledStringPart::Style(style) => {
-                        fg = style
-                            .foreground_color()
-                            .into_color(self.config.foreground_color(), fg);
-                        bg = style
-                            .background_color()
-                            .into_color(self.config.background_color(), bg);
-                    }
-                    StyledStringPart::Swap => {
-                        std::mem::swap(&mut fg, &mut bg);
-                    }
-                    StyledStringPart::Align(_) => {
-                        log::warn!("Aligns not implemented")
-                    }
-                    StyledStringPart::Action(_) => {} // Actions are not relative to
-                    // rendering
-                    StyledStringPart::ActionEnd => {} // Actions are not relative to
-                                                      // rendering
-                }
+            for i in cmds {
+                let Command {string, fg, bg, start, end:_} = i;
+                let text = crate::paint::Text::new(string, &font, fg, bg);
+                text.paint(&mut canvas.slice(start, 5, self.width as usize-start, self.height as usize-5).unwrap()).unwrap();
             }
-            //let text = crate::paint::Text::new(
-            //    self.data.clone(),
-            //    font,
-            //    self.config.foreground_color(),
-            //    self.config.background_color(),
-            //);
-            //text.paint(&mut canvas).unwrap();
+            log::info!("Painted");
         }
 
         self.layer
@@ -547,7 +587,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         );
                         println!("{}", action);
                     } else {
-                        log::info!("Pointer release key {} triggering nothing", button);
+                        log::info!("Pointer release key {} triggering nothing at {}", button, event.position.0);
                     }
                 }
                 PointerEventKind::Axis { vertical, .. } => {
