@@ -167,6 +167,7 @@ impl Bar {
                     }
                 }
                 StyledStringPart::Swap => {} // Styles are irrelevant to action
+                StyledStringPart::Align(_) => { log::warn!("Aligns not implemented") }
             }
         }
         if let Some(pending) = pending {
@@ -349,6 +350,7 @@ impl Bar {
                     StyledStringPart::Swap => {
                         std::mem::swap(&mut fg, &mut bg);
                     }
+                    StyledStringPart::Align(_) => { log::warn!("Aligns not implemented") }
                     StyledStringPart::Action(_) => {} // Actions are not relative to
                     // rendering
                     StyledStringPart::ActionEnd => {} // Actions are not relative to

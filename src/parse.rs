@@ -28,6 +28,13 @@ pub enum StyledStringPart {
     Action(Action),
     ActionEnd,
     Swap,
+    Align(Align),
+}
+
+#[derive(PartialEq)]
+#[derive(Debug)]
+pub enum Align {
+    Left, Center, Right,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -86,6 +93,9 @@ peg::parser! {
             }
             / "%{A}" {StyledStringPart::ActionEnd}
             / "%{R}" {StyledStringPart::Swap}
+            / "%{l}" {StyledStringPart::Align(Align::Left)}
+            / "%{r}" {StyledStringPart::Align(Align::Right)}
+            / "%{c}" {StyledStringPart::Align(Align::Center)}
         rule part() -> StyledStringPart
             = f:formatting_block() {StyledStringPart::Style(f)}
             / a:action() {a}
