@@ -4,13 +4,13 @@ pub struct StyledString {
 }
 
 impl StyledString {
-    pub fn new(content: Vec<StyledStringPart>) -> Self {
-        Self { content }
-    }
-
-    pub fn content(&self) -> &[StyledStringPart] {
-        &self.content
-    }
+    //pub fn new(content: Vec<StyledStringPart>) -> Self {
+    //    Self { content }
+    //}
+    //
+    //pub fn content(&self) -> &[StyledStringPart] {
+    //    &self.content
+    //}
 
     pub fn into_content(self) -> Vec<StyledStringPart> {
         self.content
@@ -24,17 +24,17 @@ pub struct Action {
 }
 
 impl Action {
-    pub fn new(button: u8, cmd: String) -> Self {
-        Self { button, cmd }
-    }
+    //pub fn new(button: u8, cmd: String) -> Self {
+    //    Self { button, cmd }
+    //}
 
-    pub fn button(&self) -> u8 {
-        self.button
-    }
+    //pub fn button(&self) -> u8 {
+    //    self.button
+    //}
 
-    pub fn cmd(&self) -> &str {
-        &self.cmd
-    }
+    //pub fn cmd(&self) -> &str {
+    //    &self.cmd
+    //}
 
     pub fn into_tuple(self) -> (u8, String) {
         (self.button, self.cmd)
@@ -47,6 +47,7 @@ pub enum StyledStringPart {
     Style(Style),
     Action(Action),
     ActionEnd,
+    Swap,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -111,6 +112,7 @@ peg::parser! {
                 }))
             }
             / "%{A}" {StyledStringPart::ActionEnd}
+            / "%{R}" {StyledStringPart::Swap}
         rule part() -> StyledStringPart
             = f:formatting_block() {StyledStringPart::Style(f)}
             / a:action() {a}

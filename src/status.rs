@@ -1,7 +1,7 @@
 use std::sync::Condvar;
 use crate::{
     cli,
-    paint::{Paint, Paintable},
+    paint::{Paint, Paintable}, parse::StyledStringPart,
 };
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
@@ -144,12 +144,12 @@ impl Bar {
             .into_content()
         {
             match i {
-                crate::parse::StyledStringPart::Style(_) => {} // Styles are irrelevant to action
+                StyledStringPart::Style(_) => {} // Styles are irrelevant to action
                 // handling
-                crate::parse::StyledStringPart::String(string) => {
+                StyledStringPart::String(string) => {
                     cursor += self.get_width(&string) as usize;
                 }
-                crate::parse::StyledStringPart::Action(action) => {
+                StyledStringPart::Action(action) => {
                     let (button, cmd) = action.into_tuple();
                     pending = Some(Action {
                         button,
@@ -158,7 +158,7 @@ impl Bar {
                         end: 0, // Temp
                     });
                 }
-                crate::parse::StyledStringPart::ActionEnd => {
+                StyledStringPart::ActionEnd => {
                     if let Some(pending) = std::mem::take(&mut pending) {
                         retval.push(Action {
                             end: cursor,
@@ -166,6 +166,7 @@ impl Bar {
                         })
                     }
                 }
+                StyledStringPart::Swap => {} // Styles are irrelevant to action
             }
         }
         if let Some(pending) = pending {
@@ -319,7 +320,7 @@ impl Bar {
                 .into_iter()
             {
                 match part {
-                    crate::parse::StyledStringPart::String(string) => {
+                    StyledStringPart::String(string) => {
                         let text = crate::paint::Text::new(string, font.clone(), fg, bg);
                         for y in 0..height {
                             for x in margin_left..(text.get_region().0 as usize + margin_left) {
@@ -337,7 +338,7 @@ impl Bar {
                         text.paint(&mut slice).unwrap();
                         margin_left += text.get_region().0 as usize;
                     }
-                    crate::parse::StyledStringPart::Style(style) => {
+                    StyledStringPart::Style(style) => {
                         fg = style
                             .foreground_color()
                             .into_color(self.config.foreground_color(), fg);
@@ -345,9 +346,12 @@ impl Bar {
                             .background_color()
                             .into_color(self.config.background_color(), bg);
                     }
-                    crate::parse::StyledStringPart::Action(_) => {} // Actions are not relative to
+                    StyledStringPart::Swap => {
+                        std::mem::swap(&mut fg, &mut bg);
+                    }
+                    StyledStringPart::Action(_) => {} // Actions are not relative to
                     // rendering
-                    crate::parse::StyledStringPart::ActionEnd => {} // Actions are not relative to
+                    StyledStringPart::ActionEnd => {} // Actions are not relative to
                                                                     // rendering
                 }
             }
