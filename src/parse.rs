@@ -4,14 +4,6 @@ pub struct StyledString {
 }
 
 impl StyledString {
-    //pub fn new(content: Vec<StyledStringPart>) -> Self {
-    //    Self { content }
-    //}
-    //
-    //pub fn content(&self) -> &[StyledStringPart] {
-    //    &self.content
-    //}
-
     pub fn into_content(self) -> Vec<StyledStringPart> {
         self.content
     }
@@ -24,18 +16,6 @@ pub struct Action {
 }
 
 impl Action {
-    //pub fn new(button: u8, cmd: String) -> Self {
-    //    Self { button, cmd }
-    //}
-
-    //pub fn button(&self) -> u8 {
-    //    self.button
-    //}
-
-    //pub fn cmd(&self) -> &str {
-    //    &self.cmd
-    //}
-
     pub fn into_tuple(self) -> (u8, String) {
         (self.button, self.cmd)
     }
@@ -78,13 +58,6 @@ pub struct Style {
 }
 
 impl Style {
-    pub fn new(foreground_color: Color, background_color: Color) -> Self {
-        Self {
-            foreground_color,
-            background_color,
-        }
-    }
-
     pub fn foreground_color(&self) -> Color {
         self.foreground_color
     }
