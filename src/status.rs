@@ -1,9 +1,9 @@
+use crate::paint::Paint;
 use crate::{
     cli::{self, Color},
     paint::Paintable,
     parse::StyledStringPart,
 };
-use crate::paint::Paint;
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
@@ -373,22 +373,40 @@ impl Bar {
                 StyledStringPart::String(string) => match align {
                     crate::parse::Align::Left => {
                         let width = self.get_width(&string) as usize;
-                        left.push(Command { fg, bg, string, start:lcursor, end:lcursor + width });
+                        left.push(Command {
+                            fg,
+                            bg,
+                            string,
+                            start: lcursor,
+                            end: lcursor + width,
+                        });
                         lcursor += width;
                     }
                     crate::parse::Align::Right => {
                         let width = self.get_width(&string) as usize;
-                        right.push(Command { fg, bg, string, start:rcursor, end:rcursor + width });
+                        right.push(Command {
+                            fg,
+                            bg,
+                            string,
+                            start: rcursor,
+                            end: rcursor + width,
+                        });
                         rcursor += width;
                     }
                     crate::parse::Align::Center => {
                         let width = self.get_width(&string) as usize;
-                        center.push(Command { fg, bg, string, start:ccursor, end:ccursor + width });
+                        center.push(Command {
+                            fg,
+                            bg,
+                            string,
+                            start: ccursor,
+                            end: ccursor + width,
+                        });
                         ccursor += width;
                     }
                 },
                 StyledStringPart::Action(_) => {} // Actions are irrelevant to rendering
-                StyledStringPart::ActionEnd => {}      // Actions are irrelevant to rendering
+                StyledStringPart::ActionEnd => {} // Actions are irrelevant to rendering
                 StyledStringPart::Swap => {
                     std::mem::swap(&mut fg, &mut bg);
                 }
@@ -469,9 +487,25 @@ impl Bar {
             let font = rusttype::Font::try_from_bytes(&fontdata).unwrap();
 
             for i in cmds {
-                let Command {string, fg, bg, start, end:_} = i;
+                let Command {
+                    string,
+                    fg,
+                    bg,
+                    start,
+                    end: _,
+                } = i;
                 let text = crate::paint::Text::new(string, &font, fg, bg);
-                text.paint(&mut canvas.slice(start, 5, self.width as usize-start, self.height as usize-5).unwrap()).unwrap();
+                text.paint(
+                    &mut canvas
+                        .slice(
+                            start,
+                            5,
+                            self.width as usize - start,
+                            self.height as usize - 5,
+                        )
+                        .unwrap(),
+                )
+                .unwrap();
             }
             log::info!("Painted");
         }
@@ -587,7 +621,11 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         );
                         println!("{}", action);
                     } else {
-                        log::info!("Pointer release key {} triggering nothing at {}", button, event.position.0);
+                        log::info!(
+                            "Pointer release key {} triggering nothing at {}",
+                            button,
+                            event.position.0
+                        );
                     }
                 }
                 PointerEventKind::Axis { vertical, .. } => {

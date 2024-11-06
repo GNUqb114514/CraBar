@@ -11,6 +11,7 @@ fn main() {
     env_logger::init();
 
     let config = cli::Config::parse();
+    let permaent = config.permaent();
     let (mut state, mut event_queue) = Bar::new(config);
     let data = state.data();
     let condvar = state.condvar();
@@ -43,6 +44,13 @@ fn main() {
             mutex.0 = input;
             mutex.1 = true;
             condvar.notify_one();
+        }
+        if permaent {
+            loop {
+                let mut mutex = data.lock().unwrap();
+                mutex.1 = true;
+                condvar.notify_one();
+            }
         }
     });
 

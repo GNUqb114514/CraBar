@@ -154,6 +154,8 @@ pub struct Config {
     background_color: Color,
     #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value="#000000")]
     foreground_color: Color,
+    #[arg(short)]
+    permaent: bool,
 }
 
 impl Config {
@@ -163,5 +165,9 @@ impl Config {
 
     pub fn foreground_color(&self) -> Color {
         self.foreground_color
+    }
+
+    pub fn permaent(&self) -> bool {
+        self.permaent
     }
 }
