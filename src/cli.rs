@@ -150,9 +150,9 @@ impl core::str::FromStr for Color {
 
 #[derive(Parser)]
 pub struct Config {
-    #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value="#ffffff")]
+    #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value="#ffffff", short='B')]
     background_color: Color,
-    #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value="#000000")]
+    #[arg(value_parser=|v:&str| v.parse::<Color>(), default_value="#000000", short='F')]
     foreground_color: Color,
     #[arg(short)]
     permaent: bool,
