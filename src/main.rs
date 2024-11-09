@@ -24,11 +24,13 @@ fn main() {
             match stdin.read_line(&mut input) {
                 Ok(n) => {
                     if n == 0 {
+                        #[cfg(feature = "logs")]
                         log::info!("n == 0; exiting");
                         break;
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::BrokenPipe => {
+                    #[cfg(feature = "logs")]
                     log::info!("Broken pipe; exit normally");
                     break;
                 }
@@ -39,7 +41,7 @@ fn main() {
             }
             input.pop(); // Remove trailing space
 
-            // Updata mutex
+            // Update mutex
             let mut mutex = data.lock().unwrap();
             mutex.0 = input;
             mutex.1 = true;

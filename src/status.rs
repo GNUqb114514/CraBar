@@ -339,12 +339,14 @@ impl Bar {
         self.layer.set_exclusive_zone(height as i32 + 3);
 
         let mut data = self.data.lock().unwrap();
+        #[cfg(feature = "logs")]
         log::info!("Pending on condvar...");
         while !data.1 {
             data = self.condvar.wait(data).unwrap();
         }
         data.1 = false;
         let data = &data.0;
+        #[cfg(feature = "logs")]
         log::info!("Got new data: {}", data);
 
         let mut fg = self.config.foreground_color();
@@ -507,6 +509,7 @@ impl Bar {
                 )
                 .unwrap();
             }
+            #[cfg(feature = "logs")]
             log::info!("Painted");
         }
 
@@ -614,6 +617,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         }
                     }
                     if let Some((number, action)) = matched {
+                        #[cfg(feature = "logs")]
                         log::info!(
                             "Pointer release key {} triggering action #{}",
                             button,
@@ -621,6 +625,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         );
                         println!("{}", action);
                     } else {
+                        #[cfg(feature = "logs")]
                         log::info!(
                             "Pointer release key {} triggering nothing at {}",
                             button,
@@ -648,6 +653,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         }
                     }
                     if let Some((number, action)) = matched {
+                        #[cfg(feature = "logs")]
                         log::info!(
                             "Mouse wheel rotating v {} triggering #{}",
                             vertical.discrete,
@@ -655,6 +661,7 @@ impl sctk::seat::pointer::PointerHandler for Bar {
                         );
                         println!("{}", action);
                     } else {
+                        #[cfg(feature = "logs")]
                         log::info!(
                             "Mouse wheel rotating v {} triggering nothing",
                             vertical.discrete,
