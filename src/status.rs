@@ -20,6 +20,14 @@ use wayland_client::protocol::wl_output::{Transform, WlOutput};
 use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{protocol, Connection, QueueHandle};
 
+fn clone_font(font:&ab_glyph::FontVec) -> ab_glyph::FontVec {
+    ab_glyph::FontVec::try_from_vec(font.as_slice().to_vec()).unwrap()
+}
+
+fn clone_vec_font(fonts:&[ab_glyph::FontVec]) -> Vec<ab_glyph::FontVec> {
+    fonts.iter().map(|v| clone_font(v)).collect()
+}
+
 pub struct Bar {
     config: cli::Config,
     registry: sctk::registry::RegistryState,
@@ -36,7 +44,7 @@ pub struct Bar {
     pointer: Option<wayland_client::protocol::wl_pointer::WlPointer>,
     data: Arc<Mutex<(String, bool)>>,
     condvar: Arc<Condvar>,
-    fontpath: std::path::PathBuf,
+    fonts: Vec<ab_glyph::FontVec>,
 }
 
 impl ProvidesRegistryState for Bar {
@@ -153,14 +161,13 @@ impl Command {
 }
 
 impl Bar {
+    /// Get right font for a character, seeking in all fonts registred in the `fonts` vec.
+    ///
+    /// The last font was returned if there're no suitable font.
     fn get_width(&self, string: &str) -> f32 {
-        let font = rusttype::Font::try_from_vec(
-            std::fs::read::<&std::path::Path>(self.fontpath.as_ref()).unwrap(),
-        )
-        .unwrap();
         let text_obj = crate::paint::Text::new(
             string.to_owned(),
-            &font,
+            clone_vec_font(&self.fonts),
             self.config.foreground_color(),
             self.config.background_color(),
         );
@@ -305,9 +312,35 @@ impl Bar {
 
         let seat_state = smithay_client_toolkit::seat::SeatState::new(&globals, &qh);
 
-        let mut fontconfig = fontconfig::FontConfig::default();
-        let font = fontconfig.find("sans-serif".to_string(), None);
-        let fontpath = font.unwrap().path;
+        let fontconfig = font_kit::source::SystemSource::new();
+        let fonts = config
+            .fonts()
+            .iter()
+            .map(|v| {
+                if let font_kit::handle::Handle::Path { path, font_index } = fontconfig
+                    .select_best_match(
+                        &[font_kit::family_name::FamilyName::Title(v.to_string())],
+                        &Default::default(),
+                    )
+                    .unwrap_or_else(|_| {
+                        fontconfig
+                            .select_best_match(
+                                &[font_kit::family_name::FamilyName::Title(v.to_string())],
+                                &Default::default(),
+                            )
+                            .unwrap()
+                    })
+                {
+                    ab_glyph::FontVec::try_from_vec_and_index(
+                        std::fs::read(path).unwrap(),
+                        font_index,
+                    )
+                    .unwrap()
+                } else {
+                    panic!("Invalid font")
+                }
+            })
+            .collect();
         (
             Bar {
                 config,
@@ -324,7 +357,7 @@ impl Bar {
                 seat_state,
                 pointer: None,
                 data: Arc::new(Mutex::new(("".into(), false))),
-                fontpath,
+                fonts,
                 condvar: Arc::new(Condvar::new()),
             },
             event_queue,
@@ -482,11 +515,6 @@ impl Bar {
                         .unwrap();
                 }
             }
-            let mut config = fontconfig::FontConfig::default();
-            let font = config.find("sans-serif".to_string(), None);
-            let fontpath = font.unwrap().path;
-            let fontdata = std::fs::read(fontpath).unwrap();
-            let font = rusttype::Font::try_from_bytes(&fontdata).unwrap();
 
             for i in cmds {
                 let Command {
@@ -496,7 +524,9 @@ impl Bar {
                     start,
                     end: _,
                 } = i;
-                let text = crate::paint::Text::new(string, &font, fg, bg);
+
+                let text = crate::paint::Text::new(string, clone_vec_font(&self.fonts), fg, bg);
+
                 text.paint(
                     &mut canvas
                         .slice(

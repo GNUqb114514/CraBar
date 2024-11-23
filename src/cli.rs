@@ -158,6 +158,8 @@ pub struct Config {
     permaent: bool,
     #[arg(short)]
     name: Option<String>,
+    #[arg(short, long = "font")]
+    fonts: Vec<String>,
 }
 
 impl Config {
@@ -175,5 +177,9 @@ impl Config {
 
     pub fn name(&self) -> Option<&String> {
         self.name.as_ref()
+    }
+
+    pub fn fonts(&self) -> &[String] {
+        &self.fonts
     }
 }

@@ -1,4 +1,6 @@
+use ab_glyph::ScaleFont;
 use crate::cli::Color;
+use ab_glyph::Font;
 
 pub trait Paintable {
     fn width(&self) -> usize;
@@ -140,75 +142,81 @@ impl Paintable for Canvas<'_> {
 }
 
 #[derive(Debug)]
-pub struct Text<'font> {
+pub struct Text {
     //content: String,
     content: String,
-    font: &'font rusttype::Font<'font>,
+    fonts: Vec<ab_glyph::FontVec>,
     fg_color: Color,
     bg_color: Color,
 }
 
-impl<'font> Text<'font> {
+impl<'font> Text {
+    /// Get right font for a character, seeking in all fonts registred in the `fonts` vec.
+    ///
+    /// The last font was returned if there're no suitable font.
+    fn get_font(&self, ch: char) -> &ab_glyph::FontVec {
+        for i in &self.fonts {
+            let glyph_id = i.glyph_id(ch);
+            if glyph_id.0 == 0 {
+                continue;
+            }
+            return i;
+        }
+        return self.fonts.last().unwrap(); // Notdef
+    }
+
     pub fn new(
         content: String,
-        font: &'font rusttype::Font<'font>,
+        fonts: Vec<ab_glyph::FontVec>,
         fg_color: Color,
         bg_color: Color,
     ) -> Self {
         Self {
             content,
-            font,
+            fonts,
             fg_color,
             bg_color,
         }
     }
 
     pub fn get_region(&self) -> (f32, f32) {
-        let scale = rusttype::Scale::uniform(20.);
-        let v_metrics = self.font.v_metrics(scale);
-        let height = v_metrics.ascent - v_metrics.descent;
-        let content = self.content.replace(" ", "a");
-        let glyphs: Vec<_> = self
-            .font
-            .layout(&content, scale, rusttype::point(0., 0.))
-            .collect();
-        let width = {
-            let min_x = glyphs
-                .first()
-                .map(|g| g.pixel_bounding_box().unwrap().min.x)
-                .unwrap();
-            let max_x = glyphs
-                .last()
-                .map(|g| g.pixel_bounding_box().unwrap().max.x)
-                .unwrap();
-            max_x - min_x
-        };
-        (width as f32, height)
+        let scale: ab_glyph::PxScale = 20.0.into();
+        let mut cursor = ab_glyph::point(0., self.fonts.first().unwrap().as_scaled(scale).ascent());
+        for i in self.content.chars() {
+            let font = self.get_font(i);
+            let glyph_id = font.glyph_id(i);
+            cursor.x += font.as_scaled(scale).h_advance(glyph_id);
+        }
+        (cursor.x, self.fonts.first().unwrap().as_scaled(scale).height())
     }
 }
 
-impl Paint for Text<'_> {
+impl Paint for Text {
     fn paint(&self, canvas: &mut impl Paintable) -> Result<(), ()> {
-        let scale = rusttype::Scale::uniform(20.);
-        let v_metrics = self.font.v_metrics(scale);
-        let start = rusttype::point(0., v_metrics.ascent);
-        let glyphs = self.font.layout(&self.content, scale, start);
-        for glyph in glyphs {
-            if let Some(bounding_box) = glyph.pixel_bounding_box() {
-                glyph.draw(|x, y, v| {
-                    let blend = self
-                        .fg_color
-                        .with_alpha((v * 255.) as u8)
-                        .blend(&self.bg_color);
-                    canvas
-                        .draw_pixel(
-                            (x + bounding_box.min.x as u32) as usize,
-                            (y + bounding_box.min.y as u32) as usize,
-                            blend,
-                        )
-                        .unwrap();
-                })
-            }
+        let scale: ab_glyph::PxScale = 20.0.into();
+        let mut cursor = ab_glyph::point(0., self.fonts.first().unwrap().as_scaled(scale).ascent());
+        for i in self.content.chars() {
+            let font = self.get_font(i);
+            let glyph_id = font.glyph_id(i);
+            let glyph = glyph_id.with_scale_and_position(scale, cursor);
+            let outline = font.outline_glyph(glyph).unwrap_or_else(
+                || {
+                    font.outline_glyph(ab_glyph::GlyphId(0).with_scale_and_position(scale, cursor))
+                        .unwrap()
+                }, // There MUST be at least 1 glyphs
+            );
+            outline.draw(|x, y, v| {
+                canvas
+                    .draw_pixel(
+                        (x as f32 + outline.px_bounds().min.x) as usize,
+                        (y as f32 + outline.px_bounds().min.y) as usize,
+                        self.fg_color
+                            .with_alpha((v * 256.) as u8)
+                            .blend(&self.bg_color),
+                    )
+                    .unwrap()
+            });
+            cursor.x += font.as_scaled(scale).h_advance(glyph_id);
         }
         Ok(())
     }
