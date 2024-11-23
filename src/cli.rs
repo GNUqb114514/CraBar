@@ -156,6 +156,8 @@ pub struct Config {
     foreground_color: Color,
     #[arg(short)]
     permaent: bool,
+    #[arg(short)]
+    name: Option<String>,
 }
 
 impl Config {
@@ -169,5 +171,9 @@ impl Config {
 
     pub fn permaent(&self) -> bool {
         self.permaent
+    }
+
+    pub fn name(&self) -> Option<&String> {
+        self.name.as_ref()
     }
 }

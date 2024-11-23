@@ -289,7 +289,7 @@ impl Bar {
             &qh,
             surface,
             smithay_client_toolkit::shell::wlr_layer::Layer::Top,
-            Some("CraBar"),
+            config.name(),
             None,
         );
         layer.set_anchor(
