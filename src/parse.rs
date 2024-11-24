@@ -30,6 +30,23 @@ pub enum StyledStringPart {
     Swap,
     Align(Align),
     Offset(usize),
+    Attribute{
+        attribute: Attribute,
+        action: AttributeAction,
+    }
+}
+
+#[derive(Debug)]
+#[derive(PartialEq)]
+pub enum Attribute {
+    Overline,
+    Underline,
+}
+
+#[derive(PartialEq)]
+#[derive(Debug)]
+pub enum AttributeAction {
+    On, Off, Toggle,
 }
 
 #[derive(PartialEq, Debug)]
@@ -91,6 +108,13 @@ peg::parser! {
             / "%{F" c:color() "}" {Style{foreground_color:Color::New(c), background_color:Color::Now}}
             / "%{B-}" {Style{foreground_color:Color::Now, background_color:Color::Default}}
             / "%{F-}" {Style{background_color:Color::Now, foreground_color:Color::Default}}
+        rule attribute_action() -> AttributeAction
+            = "+" {AttributeAction::On}
+            / "-" {AttributeAction::Off}
+            / "!" {AttributeAction::Toggle}
+        rule attribute() -> Attribute
+            = "o" {Attribute::Overline}
+            / "u" {Attribute::Underline}
         rule action() -> StyledStringPart
             = "%{A" button:(['1'..='5']?) ":" cmd:([^':']+) ":}" {?
                 Ok(StyledStringPart::Action(Action{
