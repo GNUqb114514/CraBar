@@ -23,7 +23,7 @@ use wayland_client::protocol::wl_output::{Transform, WlOutput};
 use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{protocol, Connection, QueueHandle};
 
-const TEXT_SIZE: f32 = 16.;
+const TEXT_SIZE: f32 = 20.;
 
 fn x_height<F>(font: &PxScaleFont<F>, scale: f32) -> f32
 where
@@ -916,6 +916,7 @@ impl sctk::seat::SeatHandler for Bar {
         capability: smithay_client_toolkit::seat::Capability,
     ) {
         if capability == sctk::seat::Capability::Pointer && self.pointer.is_none() {
+            #[cfg(feature = "logs")]
             log::info!("Initializing pointer");
             let pointer = self.seat_state.get_pointer(qh, &seat).unwrap();
             self.pointer = Some(pointer);

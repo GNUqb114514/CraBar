@@ -20,7 +20,8 @@ fn main() {
     let io_thread = std::thread::spawn(move || {
         loop {
             let mut input = String::new();
-            log::info!("Waiting input...");
+            #[cfg(feature = "logs")]
+            log::info!("Waiting for input...");
             let stdin = std::io::stdin();
             match stdin.read_line(&mut input) {
                 Ok(n) => {
