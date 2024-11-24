@@ -158,7 +158,7 @@ pub struct Config {
     permaent: bool,
     #[arg(short)]
     name: Option<String>,
-    #[arg(short, long = "font")]
+    #[arg(short, long = "font", default_value="sans-serif")]
     fonts: Vec<String>,
 }
 
