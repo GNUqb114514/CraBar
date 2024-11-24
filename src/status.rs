@@ -4,6 +4,9 @@ use crate::{
     paint::Paintable,
     parse::StyledStringPart,
 };
+use ab_glyph::Font;
+use ab_glyph::ScaleFont;
+use ab_glyph::{FontArc, PxScaleFont};
 use sctk::compositor::{self, CompositorHandler};
 use sctk::output::{self, OutputHandler};
 use sctk::registry::ProvidesRegistryState;
@@ -20,12 +23,16 @@ use wayland_client::protocol::wl_output::{Transform, WlOutput};
 use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_client::{protocol, Connection, QueueHandle};
 
-fn clone_font(font:&ab_glyph::FontVec) -> ab_glyph::FontVec {
-    ab_glyph::FontVec::try_from_vec(font.as_slice().to_vec()).unwrap()
-}
+const TEXT_SIZE: f32 = 16.;
 
-fn clone_vec_font(fonts:&[ab_glyph::FontVec]) -> Vec<ab_glyph::FontVec> {
-    fonts.iter().map(|v| clone_font(v)).collect()
+fn x_height<F>(font: &PxScaleFont<F>, scale: f32) -> f32
+where
+    F: Font,
+{
+    font.outline_glyph(font.glyph_id('x').with_scale(scale))
+        .unwrap()
+        .px_bounds()
+        .height()
 }
 
 pub struct Bar {
@@ -44,7 +51,7 @@ pub struct Bar {
     pointer: Option<wayland_client::protocol::wl_pointer::WlPointer>,
     data: Arc<Mutex<(String, bool)>>,
     condvar: Arc<Condvar>,
-    fonts: Vec<ab_glyph::FontVec>,
+    fonts: Vec<PxScaleFont<FontArc>>,
 }
 
 impl ProvidesRegistryState for Bar {
@@ -167,7 +174,7 @@ impl Bar {
     fn get_width(&self, string: &str) -> f32 {
         let text_obj = crate::paint::Text::new(
             string.to_owned(),
-            clone_vec_font(&self.fonts),
+            self.fonts.clone(),
             self.config.foreground_color(),
             self.config.background_color(),
         );
@@ -313,7 +320,7 @@ impl Bar {
         let seat_state = smithay_client_toolkit::seat::SeatState::new(&globals, &qh);
 
         let fontconfig = font_kit::source::SystemSource::new();
-        let fonts = config
+        let fonts: Vec<FontArc> = config
             .fonts()
             .iter()
             .map(|v| {
@@ -336,9 +343,20 @@ impl Bar {
                         font_index,
                     )
                     .unwrap()
+                    .into()
                 } else {
                     panic!("Invalid font")
                 }
+            })
+            .collect();
+        let primary_font = fonts.first().unwrap();
+        let base_x_height = x_height(&primary_font.as_scaled(TEXT_SIZE), TEXT_SIZE);
+        let fonts = fonts
+            .into_iter()
+            .map(|v| {
+                let v_x_height = x_height(&v.as_scaled(TEXT_SIZE), TEXT_SIZE);
+                let x_height_ratio = base_x_height / v_x_height;
+                v.into_scaled(TEXT_SIZE * x_height_ratio)
             })
             .collect();
         (
@@ -525,7 +543,7 @@ impl Bar {
                     end: _,
                 } = i;
 
-                let text = crate::paint::Text::new(string, clone_vec_font(&self.fonts), fg, bg);
+                let text = crate::paint::Text::new(string, self.fonts.clone(), fg, bg);
 
                 text.paint(
                     &mut canvas

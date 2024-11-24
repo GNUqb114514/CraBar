@@ -1,13 +1,15 @@
-use ab_glyph::ScaleFont;
 use crate::cli::Color;
-use ab_glyph::Font;
+use crate::error::Error;
+use ab_glyph::FontArc;
+use ab_glyph::PxScaleFont;
+use ab_glyph::ScaleFont;
 
 pub trait Paintable {
     fn width(&self) -> usize;
     fn height(&self) -> usize;
-    fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()>;
-    fn get_pixel(&self, x: usize, y: usize) -> Result<Color, ()>;
-    fn draw_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()> {
+    fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), Error>;
+    fn get_pixel(&self, x: usize, y: usize) -> Result<Color, Error>;
+    fn draw_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), Error> {
         self.set_pixel(x, y, color.blend(&self.get_pixel(x, y)?))
     }
     fn slice<'slice>(
@@ -16,12 +18,12 @@ pub trait Paintable {
         y: usize,
         width: usize,
         height: usize,
-    ) -> Result<PaintableSlice<'slice, Self>, ()>
+    ) -> Result<PaintableSlice<'slice, Self>, Error>
     where
         Self: Sized,
     {
         if self.height() < y + height || self.width() < x + width {
-            Err(())
+            Err(Error::PointOutbound)
         } else {
             Ok(PaintableSlice::new(self, x, y, height, width))
         }
@@ -29,7 +31,7 @@ pub trait Paintable {
 }
 
 pub trait Paint {
-    fn paint(&self, canvas: &mut impl Paintable) -> Result<(), ()>;
+    fn paint(&self, canvas: &mut impl Paintable) -> Result<(), Error>;
 }
 
 pub struct Canvas<'buffer> {
@@ -96,16 +98,16 @@ impl<P> Paintable for PaintableSlice<'_, P>
 where
     P: Paintable,
 {
-    fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()> {
+    fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), Error> {
         if y >= self.height || x >= self.width {
-            return Err(());
+            return Err(Error::PointOutbound);
         }
         self.parent_canvas.set_pixel(x + self.x, y + self.y, color)
     }
 
-    fn get_pixel(&self, x: usize, y: usize) -> Result<Color, ()> {
+    fn get_pixel(&self, x: usize, y: usize) -> Result<Color, Error> {
         if y >= self.height || x >= self.width {
-            return Err(());
+            return Err(Error::PointOutbound);
         }
         self.parent_canvas.get_pixel(x + self.x, y + self.y)
     }
@@ -120,16 +122,16 @@ where
 }
 
 impl Paintable for Canvas<'_> {
-    fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), ()> {
+    fn set_pixel(&mut self, x: usize, y: usize, color: Color) -> Result<(), Error> {
         if self.height < y || self.width < x {
-            return Err(());
+            return Err(Error::PointOutbound);
         }
-        *self.get_buffer_mut(x, y).ok_or(())? = (&color).into();
+        *self.get_buffer_mut(x, y).ok_or(Error::PointOutbound)? = (&color).into();
         Ok(())
     }
 
-    fn get_pixel(&self, x: usize, y: usize) -> Result<Color, ()> {
-        Ok(self.get_buffer(x, y).ok_or(())?.into())
+    fn get_pixel(&self, x: usize, y: usize) -> Result<Color, Error> {
+        Ok(self.get_buffer(x, y).ok_or(Error::PointOutbound)?.into())
     }
 
     fn width(&self) -> usize {
@@ -145,7 +147,7 @@ impl Paintable for Canvas<'_> {
 pub struct Text {
     //content: String,
     content: String,
-    fonts: Vec<ab_glyph::FontVec>,
+    fonts: Vec<PxScaleFont<FontArc>>,
     fg_color: Color,
     bg_color: Color,
 }
@@ -154,7 +156,7 @@ impl<'font> Text {
     /// Get right font for a character, seeking in all fonts registred in the `fonts` vec.
     ///
     /// The last font was returned if there're no suitable font.
-    fn get_font(&self, ch: char) -> &ab_glyph::FontVec {
+    fn get_font(&self, ch: char) -> &PxScaleFont<FontArc> {
         for i in &self.fonts {
             let glyph_id = i.glyph_id(ch);
             if glyph_id.0 == 0 {
@@ -167,7 +169,7 @@ impl<'font> Text {
 
     pub fn new(
         content: String,
-        fonts: Vec<ab_glyph::FontVec>,
+        fonts: Vec<PxScaleFont<FontArc>>,
         fg_color: Color,
         bg_color: Color,
     ) -> Self {
@@ -180,23 +182,22 @@ impl<'font> Text {
     }
 
     pub fn get_region(&self) -> (f32, f32) {
-        let scale: ab_glyph::PxScale = 20.0.into();
-        let mut cursor = ab_glyph::point(0., self.fonts.first().unwrap().as_scaled(scale).ascent());
+        let mut cursor = ab_glyph::point(0., self.fonts.first().unwrap().ascent());
         for i in self.content.chars() {
             let font = self.get_font(i);
             let glyph_id = font.glyph_id(i);
-            cursor.x += font.as_scaled(scale).h_advance(glyph_id);
+            cursor.x += font.h_advance(glyph_id);
         }
-        (cursor.x, self.fonts.first().unwrap().as_scaled(scale).height())
+        (cursor.x, self.fonts.first().unwrap().height())
     }
 }
 
 impl Paint for Text {
-    fn paint(&self, canvas: &mut impl Paintable) -> Result<(), ()> {
-        let scale: ab_glyph::PxScale = 20.0.into();
-        let mut cursor = ab_glyph::point(0., self.fonts.first().unwrap().as_scaled(scale).ascent());
+    fn paint(&self, canvas: &mut impl Paintable) -> Result<(), Error> {
+        let mut cursor = ab_glyph::point(0., self.fonts.first().unwrap().ascent());
         for i in self.content.chars() {
             let font = self.get_font(i);
+            let scale: ab_glyph::PxScale = font.scale();
             let glyph_id = font.glyph_id(i);
             let glyph = glyph_id.with_scale_and_position(scale, cursor);
             let outline = font.outline_glyph(glyph).unwrap_or_else(
@@ -205,18 +206,20 @@ impl Paint for Text {
                         .unwrap()
                 }, // There MUST be at least 1 glyphs
             );
-            outline.draw(|x, y, v| {
-                canvas
-                    .draw_pixel(
-                        (x as f32 + outline.px_bounds().min.x) as usize,
-                        (y as f32 + outline.px_bounds().min.y) as usize,
-                        self.fg_color
-                            .with_alpha((v * 256.) as u8)
-                            .blend(&self.bg_color),
-                    )
-                    .unwrap()
-            });
-            cursor.x += font.as_scaled(scale).h_advance(glyph_id);
+            if i != ' ' {
+                outline.draw(|x, y, v| {
+                    canvas
+                        .draw_pixel(
+                            (x as f32 + outline.px_bounds().min.x) as usize,
+                            (y as f32 + outline.px_bounds().min.y) as usize,
+                            self.fg_color
+                                .with_alpha((v * 256.) as u8)
+                                .blend(&self.bg_color),
+                        )
+                        .unwrap()
+                });
+            }
+            cursor.x += font.h_advance(glyph_id);
         }
         Ok(())
     }
