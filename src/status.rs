@@ -135,7 +135,43 @@ struct Action {
     end: usize,
 }
 
-struct Command {
+enum Command {
+    Text(TextCommand),
+    Underline(LineCommand),
+    Overline(LineCommand),
+}
+
+impl Command {
+    fn into_offset(self, offset: usize) -> Self {
+        match self {
+            Command::Text(text_command) => Command::Text(text_command.into_offset(offset)),
+            Command::Underline(line_command) => {
+                Command::Underline(line_command.into_offset(offset))
+            }
+            Command::Overline(line_command) => Command::Overline(line_command.into_offset(offset)),
+        }
+    }
+}
+
+struct LineCommand {
+    color: Color,
+    start: usize,
+    end: usize,
+}
+
+impl LineCommand {
+    pub fn offset(&mut self, offset: usize) {
+        self.start += offset;
+        self.end += offset;
+    }
+
+    pub fn into_offset(mut self, offset: usize) -> Self {
+        self.offset(offset);
+        self
+    }
+}
+
+struct TextCommand {
     string: String,
     fg: Color,
     bg: Color,
@@ -155,7 +191,7 @@ impl Action {
     }
 }
 
-impl Command {
+impl TextCommand {
     pub fn offset(&mut self, offset: usize) {
         self.start += offset;
         self.end += offset;
@@ -256,6 +292,11 @@ impl Bar {
                     crate::parse::Align::Center => ccursor += offset,
                     crate::parse::Align::Right => rcursor += offset,
                 },
+                StyledStringPart::Attribute {
+                    attribute: _,
+                    action: _,
+                } => {} // Attributes are
+                        // irrelevant to action
             }
         }
         if let Some(pending) = pending {
@@ -348,9 +389,9 @@ impl Bar {
                         std::fs::read(path).unwrap(),
                         font_index,
                     )
-                        .map_err(|_| crate::error::Error::FontNotFound)
-                        .unwrap()
-                        .into()
+                    .map_err(|_| crate::error::Error::FontNotFound)
+                    .unwrap()
+                    .into()
                 } else {
                     panic!("Invalid font")
                 }
@@ -416,6 +457,8 @@ impl Bar {
         let mut left = vec![];
         let mut right = vec![];
         let mut center = vec![];
+        let mut pending_overline = None;
+        let mut pending_underline = None;
         for i in data
             .parse::<crate::parse::StyledString>()
             .unwrap()
@@ -433,35 +476,35 @@ impl Bar {
                 StyledStringPart::String(string) => match align {
                     crate::parse::Align::Left => {
                         let width = self.get_width(&string) as usize;
-                        left.push(Command {
+                        left.push(Command::Text(TextCommand {
                             fg,
                             bg,
                             string,
                             start: lcursor,
                             end: lcursor + width,
-                        });
+                        }));
                         lcursor += width;
                     }
                     crate::parse::Align::Right => {
                         let width = self.get_width(&string) as usize;
-                        right.push(Command {
+                        right.push(Command::Text(TextCommand {
                             fg,
                             bg,
                             string,
                             start: rcursor,
                             end: rcursor + width,
-                        });
+                        }));
                         rcursor += width;
                     }
                     crate::parse::Align::Center => {
                         let width = self.get_width(&string) as usize;
-                        center.push(Command {
+                        center.push(Command::Text(TextCommand {
                             fg,
                             bg,
                             string,
                             start: ccursor,
                             end: ccursor + width,
-                        });
+                        }));
                         ccursor += width;
                     }
                 },
@@ -478,6 +521,97 @@ impl Bar {
                     crate::parse::Align::Center => ccursor += offset,
                     crate::parse::Align::Right => rcursor += offset,
                 },
+                StyledStringPart::Attribute { attribute, action } => {
+                    let cursor = match align {
+                        crate::parse::Align::Left => lcursor,
+                        crate::parse::Align::Center => ccursor,
+                        crate::parse::Align::Right => rcursor,
+                    };
+                    match attribute {
+                        crate::parse::Attribute::Underline => {
+                            match action {
+                                crate::parse::AttributeAction::On => {
+                                    pending_underline.get_or_insert(LineCommand {
+                                        color: self.config.foreground_color(),
+                                        start: cursor,
+                                        end: 0, // Temp
+                                    });
+                                }
+                                crate::parse::AttributeAction::Off => {
+                                    if let Some(line) = std::mem::take(&mut pending_underline) {
+                                        match align {
+                                            crate::parse::Align::Left => &mut left,
+                                            crate::parse::Align::Right => &mut right,
+                                            crate::parse::Align::Center => &mut center,
+                                        }.push(Command::Underline(LineCommand {
+                                            end: cursor,
+                                            ..line
+                                        }))
+                                    }
+                                }
+                                crate::parse::AttributeAction::Toggle => {
+                                    if let Some(line) = std::mem::take(&mut pending_underline) {
+                                        match align {
+                                            crate::parse::Align::Left => &mut left,
+                                            crate::parse::Align::Right => &mut right,
+                                            crate::parse::Align::Center => &mut center,
+                                        }.push(Command::Underline(LineCommand {
+                                            end: cursor,
+                                            ..line
+                                        }))
+                                    } else {
+                                        pending_underline.get_or_insert(LineCommand {
+                                            color: self.config.foreground_color(),
+                                            start: cursor,
+                                            end: 0, // Temp
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        crate::parse::Attribute::Overline => {
+                            match action {
+                                crate::parse::AttributeAction::On => {
+                                    pending_overline.get_or_insert(LineCommand {
+                                        color: self.config.foreground_color(),
+                                        start: cursor,
+                                        end: 0, // Temp
+                                    });
+                                }
+                                crate::parse::AttributeAction::Off => {
+                                    if let Some(line) = std::mem::take(&mut pending_overline) {
+                                        match align {
+                                            crate::parse::Align::Left => &mut left,
+                                            crate::parse::Align::Right => &mut right,
+                                            crate::parse::Align::Center => &mut center,
+                                        }.push(Command::Overline(LineCommand {
+                                            end: cursor,
+                                            ..line
+                                        }))
+                                    }
+                                }
+                                crate::parse::AttributeAction::Toggle => {
+                                    if let Some(line) = std::mem::take(&mut pending_overline) {
+                                        match align {
+                                            crate::parse::Align::Left => &mut left,
+                                            crate::parse::Align::Right => &mut right,
+                                            crate::parse::Align::Center => &mut center,
+                                        }.push(Command::Overline(LineCommand {
+                                            end: cursor,
+                                            ..line
+                                        }))
+                                    } else {
+                                        pending_overline.get_or_insert(LineCommand {
+                                            color: self.config.foreground_color(),
+                                            start: cursor,
+                                            end: 0, // Temp
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         let cmds = left
@@ -547,27 +681,53 @@ impl Bar {
             }
 
             for i in cmds {
-                let Command {
-                    string,
-                    fg,
-                    bg,
-                    start,
-                    end: _,
-                } = i;
-
-                let text = crate::paint::Text::new(string, self.fonts.clone(), fg, bg);
-
-                text.paint(
-                    &mut canvas
-                        .slice(
+                match i {
+                    Command::Text(command) => {
+                        let TextCommand {
+                            string,
+                            fg,
+                            bg,
                             start,
-                            5,
-                            self.width as usize - start,
-                            self.height as usize - 5,
+                            end: _,
+                        } = command;
+
+                        let text = crate::paint::Text::new(string, self.fonts.clone(), fg, bg);
+
+                        text.paint(
+                            &mut canvas
+                                .slice(
+                                    start,
+                                    5,
+                                    self.width as usize - start,
+                                    self.height as usize - 5,
+                                )
+                                .unwrap(),
                         )
-                        .unwrap(),
-                )
-                .unwrap();
+                        .unwrap();
+                    }
+                    Command::Underline(command) => {
+                        let LineCommand { color, start, end } = command;
+
+                        for i in start..end {
+                            canvas
+                                .draw_pixel(
+                                    i,
+                                    5 + self.fonts.first().unwrap().height() as usize + 1,
+                                    color,
+                                )
+                                .unwrap();
+                        }
+                    }
+                    Command::Overline(command) => {
+                        let LineCommand { color, start, end } = command;
+
+                        for i in start..end {
+                            canvas
+                                .draw_pixel(i, 4, color)
+                                .unwrap();
+                        }
+                    }
+                }
             }
             #[cfg(feature = "logs")]
             log::info!("Painted");

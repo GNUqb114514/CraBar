@@ -30,23 +30,23 @@ pub enum StyledStringPart {
     Swap,
     Align(Align),
     Offset(usize),
-    Attribute{
+    Attribute {
         attribute: Attribute,
         action: AttributeAction,
-    }
+    },
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Attribute {
     Overline,
     Underline,
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum AttributeAction {
-    On, Off, Toggle,
+    On,
+    Off,
+    Toggle,
 }
 
 #[derive(PartialEq, Debug)]
@@ -128,6 +128,9 @@ peg::parser! {
             / "%{c}" {StyledStringPart::Align(Align::Center)}
             / "%{O" number:positive_number() "}" {
                 StyledStringPart::Offset(number)
+            }
+            / "%{" action:attribute_action() attribute:attribute() "}" {
+                StyledStringPart::Attribute { attribute, action }
             }
         rule part() -> StyledStringPart
             = f:formatting_block() {StyledStringPart::Style(f)}
