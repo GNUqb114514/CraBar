@@ -29,6 +29,7 @@ pub enum StyledStringPart {
     ActionEnd,
     Swap,
     Align(Align),
+    Offset(usize),
 }
 
 #[derive(PartialEq, Debug)]
@@ -81,6 +82,10 @@ peg::parser! {
         = n:['0'..='9'|'A'..='F'|'a'..='f']*<3,8> {?
             format!("#{}", n.iter().collect::<String>()).parse().map_err(|_| "Invalid string")
         }
+        rule positive_number() -> usize
+            = n:['0'..='9']+ {?
+                n.iter().collect::<String>().parse().map_err(|_| "Invalid number")
+            }
         rule formatting_block() -> Style
             = "%{B" c:color() "}" {Style{foreground_color:Color::Now, background_color:Color::New(c)}}
             / "%{F" c:color() "}" {Style{foreground_color:Color::New(c), background_color:Color::Now}}
@@ -97,6 +102,9 @@ peg::parser! {
             / "%{l}" {StyledStringPart::Align(Align::Left)}
             / "%{r}" {StyledStringPart::Align(Align::Right)}
             / "%{c}" {StyledStringPart::Align(Align::Center)}
+            / "%{O" number:positive_number() "}" {
+                StyledStringPart::Offset(number)
+            }
         rule part() -> StyledStringPart
             = f:formatting_block() {StyledStringPart::Style(f)}
             / a:action() {a}

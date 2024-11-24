@@ -251,6 +251,11 @@ impl Bar {
                     }
                     align = align_;
                 }
+                StyledStringPart::Offset(offset) => match align {
+                    crate::parse::Align::Left => lcursor += offset,
+                    crate::parse::Align::Center => ccursor += offset,
+                    crate::parse::Align::Right => rcursor += offset,
+                },
             }
         }
         if let Some(pending) = pending {
@@ -335,6 +340,7 @@ impl Bar {
                                 &[font_kit::family_name::FamilyName::Title(v.to_string())],
                                 &Default::default(),
                             )
+                            .map_err(|_| crate::error::Error::FontNotFound)
                             .unwrap()
                     })
                 {
@@ -342,8 +348,9 @@ impl Bar {
                         std::fs::read(path).unwrap(),
                         font_index,
                     )
-                    .unwrap()
-                    .into()
+                        .map_err(|_| crate::error::Error::FontNotFound)
+                        .unwrap()
+                        .into()
                 } else {
                     panic!("Invalid font")
                 }
@@ -466,6 +473,11 @@ impl Bar {
                 StyledStringPart::Align(align_) => {
                     align = align_;
                 }
+                StyledStringPart::Offset(offset) => match align {
+                    crate::parse::Align::Left => lcursor += offset,
+                    crate::parse::Align::Center => ccursor += offset,
+                    crate::parse::Align::Right => rcursor += offset,
+                },
             }
         }
         let cmds = left
