@@ -1,5 +1,5 @@
 # CraBar
-A crabweight crab-scented bar based in smithay (WIP)
+A crabweight crab-scented bar based in smithay.
 
 ## This isn't
 - A drop-in replacement for lemonbar (but it will be);
